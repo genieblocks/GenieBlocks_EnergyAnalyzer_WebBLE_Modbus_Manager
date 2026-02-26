@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.0">
+<html lang="en" data-version="v1.0.1">
   <head>
     <title>GenieBlocks LoRaWAN OTAA</title>
     <meta charset="utf-8">
@@ -24,7 +24,7 @@
     </div>
     <header class="main-header">
       <img src="assets/genieblocks-logo.png" class="GenieBlocks-Logo">
-      <h1>GenieBlocks Bluetooth Cihaz Konfigürasyonu</h1>
+      <h1>Enerji Analizörü – Kablosuz Veri Okuma</h1>
     </header>
     <main class="main-content">
       <div class="connection-bar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
@@ -32,14 +32,14 @@
         <button id="butConnect" type="button">Cihaza Bağlan</button>
       </div>
 
-      <!-- Modern, minimal tab menüsü -->
+      <!-- Modern, minimal tab menüsü (LoRaWAN sekmesi gizli – gerektiğinde geri açılabilir) -->
       <div class="tab-container-modern">
-        <button class="tab-modern active" data-tab="lorawan">LoRaWAN</button>
-        <button class="tab-modern" data-tab="modbus">Modbus</button>
+        <button class="tab-modern" data-tab="lorawan" style="display:none;">LoRaWAN</button>
+        <button class="tab-modern active" data-tab="modbus">Modbus Ayarları</button>
         <button class="tab-modern" data-tab="firmware">Firmware</button>
       </div>
 
-      <div class="tab-content" id="tab-lorawan">
+      <div class="tab-content" id="tab-lorawan" style="display:none;">
         <form class="otaa-form" autocomplete="off" onsubmit="return false;">
           <div class="form-row">
             <label for="device_eui">Device EUI</label>
@@ -71,7 +71,8 @@
           </div>
         </form>
       </div>
-      <div class="tab-content" id="tab-modbus" style="display:none;">
+      <div class="tab-content" id="tab-modbus">
+        <p class="tab-description">Enerji analizörüne bağlanmak için Modbus RTU hattı ayarları.</p>
         <form class="otaa-form" autocomplete="off" onsubmit="return false;">
           <div class="form-row"><label for="mb_addr">Addr</label><input type="number" id="mb_addr" disabled></div>
           <div class="form-row"><label for="mb_baud">Baud</label><input type="text" id="mb_baud" disabled></div>
@@ -171,6 +172,6 @@
       </div>
       <div id="log" class="log-area"></div>
     </main>
-                            <div class="app-version">v1.0.0</div>
+                            <div class="app-version">v1.0.1</div>
   </body>
 </html>

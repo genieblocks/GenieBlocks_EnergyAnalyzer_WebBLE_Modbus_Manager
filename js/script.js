@@ -134,7 +134,7 @@ async function connect() {
   device = await navigator.bluetooth.requestDevice({
     acceptAllDevices: true,
     optionalServices: [
-      LORAWAN_SERVICE_UUID,
+      // LORAWAN_SERVICE_UUID, // LoRaWAN devre dışı – gerektiğinde tekrar eklenebilir
       '0000a005-0000-1000-8000-00805f9b34fb', // Commit karakteristiği
       window.MODBUS_SERVICE_UUID // Modbus servisi
       // '00008018-0000-1000-8000-00805f9b34fb' // OTA servisi eklendi
@@ -293,21 +293,10 @@ async function clickConnect() {
     toggleUIConnected(true);
     logMsg('Bluetooth cihazları başarıyla bulundu ve bağlanıldı.');
     try {
-      await readLoRaWANAll();
+      // LoRaWAN okuma devre dışı – sadece Modbus okunuyor
       await readModbusAll();
-      [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
-        if (input) input.disabled = false;
-      });
-      document.getElementById('write_all').disabled = false;
     } catch (e) {
       logMsg('Bağlantı kuruldu fakat cihazdan veri okunamadı: ' + e);
-      [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
-        if (input) {
-          input.value = '';
-          input.disabled = true;
-        }
-      });
-      document.getElementById('write_all').disabled = true;
     }
   } catch (e) {
     logMsg('Bluetooth cihazı bulunamadı veya bağlantı reddedildi.');
@@ -1145,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (readBtn) {
     readBtn.addEventListener('click', async () => {
       try {
-        await readLoRaWANAll();
+        // LoRaWAN okuma devre dışı – sadece Modbus
         await readModbusAll();
         logMsg('Cihazdan veriler tekrar okundu ve alanlar güncellendi.');
       } catch (e) {
@@ -1238,7 +1227,7 @@ function formatFileSize(bytes) {
 
 // --- Otomatik Sürüm Kontrolü ---
 const CURRENT_VERSION = document.querySelector('.app-version')?.textContent?.trim();
-const GITHUB_IO_URL = "https://genieblocks.github.io/GenieBlocks_EnergyAnalyzer_Web_Bluetooth_Device_Configuration/";
+const GITHUB_IO_URL = "https://genieblocks.github.io/GenieBlocks_EnergyAnalyzer_WebBLE_Modbus_Manager/";
 
 function checkForNewVersion() {
   fetch(GITHUB_IO_URL, { cache: "no-store" })
