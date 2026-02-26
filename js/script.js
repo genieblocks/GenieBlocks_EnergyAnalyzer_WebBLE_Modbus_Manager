@@ -1229,13 +1229,27 @@ function formatFileSize(bytes) {
 const CURRENT_VERSION = document.querySelector('.app-version')?.textContent?.trim();
 const GITHUB_IO_URL = "https://genieblocks.github.io/GenieBlocks_EnergyAnalyzer_WebBLE_Modbus_Manager/";
 
+function parseVersion(vStr) {
+  return (vStr || '').replace(/^v/, '').split('.').map(Number);
+}
+
+function isRemoteNewer(remote, local) {
+  const r = parseVersion(remote);
+  const l = parseVersion(local);
+  for (let i = 0; i < Math.max(r.length, l.length); i++) {
+    const rv = r[i] || 0, lv = l[i] || 0;
+    if (rv > lv) return true;
+    if (rv < lv) return false;
+  }
+  return false;
+}
+
 function checkForNewVersion() {
   fetch(GITHUB_IO_URL, { cache: "no-store" })
     .then(response => response.text())
     .then(html => {
-      // Yayındaki HTML'den versiyon numarasını çek
       const match = html.match(/<div class="app-version">v([0-9.]+)<\/div>/);
-      if (match && match[1] && ("v" + match[1]) !== CURRENT_VERSION) {
+      if (match && match[1] && isRemoteNewer("v" + match[1], CURRENT_VERSION)) {
         showUpdateModal("Yeni sürüm yayınlandı! Sayfayı yenilemek için Tamam'a tıklayın.");
       }
     })

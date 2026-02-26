@@ -10,6 +10,8 @@ Projede yapılan her anlamlı değişiklikten sonra, kod GitHub'a gönderilmeden
 ## Kural
 1. **Her commit öncesi:**
    - `index.html` dosyasındaki `<div class="app-version">vX.Y.Z</div>` etiketi bir üst sürüme çıkarılır.
+   - `index.html` içindeki `<script type="module" src="js/script.js?v=X.Y.Z">` parametresi de aynı sürüme güncellenir (cache-busting için zorunlu).
+   - `data-version="vX.Y.Z"` attribute'u da aynı sürüme güncellenir.
    - Sürüm numarası aşağıdaki gibi artırılır:
      - **X**: Büyük, geriye dönük uyumsuz değişiklikler (major)
      - **Y**: Yeni özellikler, geriye dönük uyumlu (minor)

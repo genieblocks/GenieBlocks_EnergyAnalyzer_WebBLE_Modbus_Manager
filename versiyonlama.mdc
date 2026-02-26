@@ -12,6 +12,8 @@ Projede yapılan her anlamlı değişiklikten sonra, kod GitHub'a gönderilmeden
 ## Kural
 1. **Her commit/push öncesi:**
    - `index.html` dosyasındaki `<div class="app-version">vX.Y.Z</div>` satırındaki versiyon numarası bir üst sürüme çıkarılmalıdır. **Bu satır güncellenmeden hiçbir değişiklik GitHub'a gönderilemez.**
+   - `index.html` içindeki `<script type="module" src="js/script.js?v=X.Y.Z">` satırındaki versiyon parametresi de aynı sürüme güncellenir (cache-busting için zorunlu).
+   - `data-version="vX.Y.Z"` attribute'u da aynı sürüme güncellenir.
    - Kodda yapılan her değişiklikte, versiyon numarası artırılmalı ve commit mesajında bu yeni versiyon açıkça belirtilmelidir.
    - Versiyon güncellenmeden yapılan push'lar geçersiz sayılır ve geri alınmalıdır.
    - Sürüm numarası aşağıdaki gibi artırılır:
