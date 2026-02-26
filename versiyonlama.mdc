@@ -1,6 +1,10 @@
 # Versiyonlama ve GitHub'a Gönderme Kuralı (versiyonlama.mdc)
 
-**Güncel Versiyon:** v1.2.3
+**Güncel Versiyon:** v1.0.0
+
+## Agent ile Yürütme
+- **Versiyon güncelleme** ve **GitHub'a yükleme (push)** işlemleri bu Cursor agent üzerinden yürütülür.
+- Yeni sürüm çıkarmak veya değişiklikleri GitHub'a göndermek için agent'a "versiyonu güncelle" veya "GitHub'a gönder" denir; agent bu kurala göre versiyonu günceller ve push yapar.
 
 ## Amaç
 Projede yapılan her anlamlı değişiklikten sonra, kod GitHub'a gönderilmeden önce uygulama versiyonu güncellenmelidir. Böylece canlıda ve repoda hangi sürümün çalıştığı kolayca takip edilebilir.
