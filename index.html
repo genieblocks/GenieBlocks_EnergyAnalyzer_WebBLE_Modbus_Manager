@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.1">
+<html lang="en" data-version="v1.0.2">
   <head>
     <title>GenieBlocks LoRaWAN OTAA</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="assets/genieblocks-logo.png" type="image/png">
     <link rel="stylesheet" href="css/style.css">
-    <script type="module" src="js/script.js?v=1.0.1" defer></script>
+    <script type="module" src="js/script.js?v=1.0.2" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
@@ -36,6 +36,7 @@
       <div class="tab-container-modern">
         <button class="tab-modern" data-tab="lorawan" style="display:none;">LoRaWAN</button>
         <button class="tab-modern active" data-tab="modbus">Modbus Ayarları</button>
+        <button class="tab-modern" data-tab="manual-modbus">Manuel Modbus</button>
         <button class="tab-modern" data-tab="firmware">Firmware</button>
       </div>
 
@@ -85,6 +86,50 @@
           <div class="form-row"><label for="mb_regstart">Reg Start</label><input type="number" id="mb_regstart" disabled></div>
           <div class="form-row"><label for="mb_reglen">Reg Len</label><input type="number" id="mb_reglen" disabled></div>
         </form>
+      </div>
+
+      <div class="tab-content" id="tab-manual-modbus" style="display:none;">
+        <p class="tab-description">Bağlı cihaz üzerinden Modbus okuma/yazma isteği gönderin. (Query/Response GATT karakteristikleri)</p>
+        <div class="manual-modbus-form">
+          <div class="form-row">
+            <label for="mm_slave">Slave Adresi</label>
+            <input type="number" id="mm_slave" min="1" max="247" value="1" placeholder="1–247">
+          </div>
+          <div class="form-row">
+            <label for="mm_func">Fonksiyon</label>
+            <select id="mm_func">
+              <option value="3">0x03 – Read Holding Registers</option>
+              <option value="4">0x04 – Read Input Registers</option>
+              <option value="6">0x06 – Write Single Register</option>
+              <option value="16">0x10 – Write Multiple Registers</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label for="mm_start">Başlangıç Adresi</label>
+            <input type="number" id="mm_start" min="0" max="65535" value="0" placeholder="0–65535">
+          </div>
+          <div class="form-row" id="mm_qty_row">
+            <label for="mm_qty">Register Sayısı</label>
+            <input type="number" id="mm_qty" min="1" max="64" value="1" placeholder="1–64">
+          </div>
+          <div class="form-row" id="mm_write_single_row" style="display:none;">
+            <label for="mm_value_single">Değer (1 register)</label>
+            <input type="text" id="mm_value_single" placeholder="0–65535 veya 0x0000" value="0">
+          </div>
+          <div class="form-row" id="mm_write_multi_row" style="display:none;">
+            <label for="mm_value_multi">Değerler (virgülle ayırın)</label>
+            <input type="text" id="mm_value_multi" placeholder="örn. 100, 200, 0x1234">
+          </div>
+          <div class="manual-modbus-actions">
+            <button type="button" id="mm_btn_read" disabled>Modbus Oku</button>
+            <button type="button" id="mm_btn_write" disabled>Modbus Yaz</button>
+          </div>
+          <div class="manual-modbus-result">
+            <div class="result-header">Sonuç</div>
+            <div id="mm_result_status" class="result-status">—</div>
+            <div id="mm_result_data" class="result-data"></div>
+          </div>
+        </div>
       </div>
 
       <div class="tab-content" id="tab-firmware" style="display:none;" class="tab-pane">
@@ -172,6 +217,6 @@
       </div>
       <div id="log" class="log-area"></div>
     </main>
-                            <div class="app-version">v1.0.1</div>
+                            <div class="app-version">v1.0.2</div>
   </body>
 </html>
