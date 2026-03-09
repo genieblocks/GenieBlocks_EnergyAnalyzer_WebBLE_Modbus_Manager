@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.3">
+<html lang="en" data-version="v1.0.4">
   <head>
-    <title>GenieBlocks LoRaWAN OTAA</title>
+    <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="assets/genieblocks-logo.png" type="image/png">
@@ -77,13 +77,38 @@
       .timestamp {
         @apply text-green-400;
       }
+      .page {
+        @apply hidden;
+      }
+      .page.active {
+        @apply block;
+      }
+      #bottom-nav {
+        @apply fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200
+               flex justify-around items-center h-14 shadow-[0_-2px_8px_rgba(0,0,0,0.06)];
+      }
+      .nav-btn {
+        @apply flex flex-col items-center justify-center gap-0.5 flex-1 h-full
+               text-gray-400 bg-transparent border-none cursor-pointer transition-colors text-xs;
+      }
+      .nav-btn.active {
+        @apply text-brand;
+      }
+      .nav-btn svg {
+        @apply w-5 h-5;
+      }
     </style>
-    <script type="module" src="js/script.js?v=1.0.3" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="js/device-registry.js" defer></script>
+    <script src="js/pages/dashboard.js" defer></script>
+    <script src="js/pages/charts.js" defer></script>
+    <script src="js/router.js" defer></script>
+    <script type="module" src="js/script.js?v=1.0.4" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
   </head>
-  <body class="bg-gray-50 text-gray-800 m-0">
+  <body class="bg-gray-50 text-gray-800 m-0 pb-16">
 
     <div id="notSupported" style="display:none;">
       <div class="flex items-start bg-amber-50 text-amber-700 border border-amber-200 rounded-lg p-3 sm:p-4 mx-2 sm:mx-auto my-2 sm:my-4 max-w-[98vw] sm:max-w-lg shadow-sm text-sm sm:text-base">
@@ -96,207 +121,255 @@
       </div>
     </div>
 
-    <header class="flex flex-col items-center py-3 sm:pt-8 sm:pb-4 bg-white border-b-2 border-brand">
-      <img src="assets/genieblocks-logo.png" class="w-[90px] h-8 mb-2 object-contain">
-      <h1 class="text-lg sm:text-2xl font-semibold text-brand m-0 text-center break-words">Enerji Analizörü – Kablosuz Veri Okuma</h1>
+    <header class="flex items-center gap-3 px-3 py-2 sm:py-3 bg-white border-b-2 border-brand sm:justify-center">
+      <img src="assets/genieblocks-logo.png" class="w-[70px] h-6 object-contain shrink-0">
+      <div class="flex flex-col min-w-0">
+        <h1 class="text-sm sm:text-lg font-semibold text-brand m-0 leading-tight truncate">Enerji Analizörü</h1>
+        <span id="header-device-name" class="text-xs text-gray-400 truncate">Cihaz seçilmedi</span>
+      </div>
+      <div class="flex-1"></div>
+      <span id="connection-status" class="status disconnected text-xs font-medium px-3 py-1 rounded-full transition-colors whitespace-nowrap shrink-0">Bağlı Değil</span>
+      <button id="butConnect" type="button" class="px-3 py-1.5 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand-dark disabled:bg-brand-light disabled:cursor-not-allowed transition-colors cursor-pointer border-none whitespace-nowrap shrink-0">Bağlan</button>
     </header>
 
-    <main class="mx-1.5 mt-1.5 p-4 bg-white rounded-lg sm:max-w-md sm:mx-auto sm:mt-8 sm:rounded-xl sm:shadow-md sm:p-6">
-
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-4">
-        <span id="connection-status" class="status disconnected text-base font-medium px-4 py-1.5 rounded-full transition-colors text-center">Bağlı Değil</span>
-        <button id="butConnect" type="button" class="btn-primary text-center">Cihaza Bağlan</button>
-      </div>
-
-      <div class="flex justify-center mb-4 border-b-2 border-gray-200 bg-white">
-        <button class="tab-modern flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="lorawan" style="display:none;">LoRaWAN</button>
-        <button class="tab-modern active flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="modbus">Modbus Ayarları</button>
-        <button class="tab-modern flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="manual-modbus">Manuel Modbus</button>
-        <button class="tab-modern flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="firmware">Firmware</button>
-      </div>
-
-      <div class="tab-content" id="tab-lorawan" style="display:none;">
-        <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
-          <div class="form-row">
-            <label for="device_eui">Device EUI</label>
-            <input type="text" id="device_eui" name="device_eui" autocomplete="off" disabled maxlength="16">
-          </div>
-          <div class="form-row">
-            <label for="app_eui">APP EUI</label>
-            <input type="text" id="app_eui" name="app_eui" autocomplete="off" disabled maxlength="16">
-          </div>
-          <div class="form-row">
-            <label for="app_key">APP Key</label>
-            <input type="text" id="app_key" name="app_key" autocomplete="off" disabled maxlength="32">
-          </div>
-          <div class="form-row">
-            <label for="platform">Platform</label>
-            <input type="text" id="platform" name="platform" autocomplete="off" disabled>
-          </div>
-          <div class="form-row">
-            <label for="freq">Freq</label>
-            <input type="text" id="freq" name="freq" autocomplete="off" disabled>
-          </div>
-          <div class="form-row">
-            <label for="pckpo">PckPo</label>
-            <input type="text" id="pckpo" name="pckpo" autocomplete="off" disabled>
-          </div>
-          <div class="form-row">
-            <label for="adr">ADR</label>
-            <input type="text" id="adr" name="adr" autocomplete="off" disabled>
-          </div>
-        </form>
-      </div>
-
-      <div class="tab-content" id="tab-modbus">
-        <p class="text-gray-500 text-sm mb-4">Enerji analizörüne bağlanmak için Modbus RTU hattı ayarları.</p>
-        <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
-          <div class="form-row"><label for="mb_addr">Addr</label><input type="number" id="mb_addr" disabled></div>
-          <div class="form-row"><label for="mb_baud">Baud</label><input type="text" id="mb_baud" disabled></div>
-          <div class="form-row"><label for="mb_parity">Parity</label><input type="number" id="mb_parity" disabled></div>
-          <div class="form-row"><label for="mb_stopbits">StopBits</label><input type="number" id="mb_stopbits" disabled></div>
-          <div class="form-row"><label for="mb_databits">DataBits</label><input type="number" id="mb_databits" disabled></div>
-          <div class="form-row"><label for="mb_timeout">Timeout</label><input type="text" id="mb_timeout" disabled></div>
-          <div class="form-row"><label for="mb_polling">Polling</label><input type="text" id="mb_polling" disabled></div>
-          <div class="form-row"><label for="mb_func">Func</label><input type="number" id="mb_func" disabled></div>
-          <div class="form-row"><label for="mb_regstart">Reg Start</label><input type="number" id="mb_regstart" disabled></div>
-          <div class="form-row"><label for="mb_reglen">Reg Len</label><input type="number" id="mb_reglen" disabled></div>
-        </form>
-      </div>
-
-      <div class="tab-content" id="tab-manual-modbus" style="display:none;">
-        <p class="text-gray-500 text-sm mb-4">Bağlı cihaz üzerinden Modbus okuma/yazma isteği gönderin. (Query/Response GATT karakteristikleri)</p>
-        <div class="flex flex-col gap-3.5">
-          <div class="form-row">
-            <label for="mm_slave">Slave Adresi</label>
-            <input type="number" id="mm_slave" min="1" max="247" value="1" placeholder="1–247">
-          </div>
-          <div class="form-row">
-            <label for="mm_func">Fonksiyon</label>
-            <select id="mm_func">
-              <option value="3">0x03 – Read Holding Registers</option>
-              <option value="4">0x04 – Read Input Registers</option>
-              <option value="6">0x06 – Write Single Register</option>
-              <option value="16">0x10 – Write Multiple Registers</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label for="mm_start">Başlangıç Adresi</label>
-            <input type="number" id="mm_start" min="0" max="65535" value="0" placeholder="0–65535">
-          </div>
-          <div class="form-row" id="mm_qty_row">
-            <label for="mm_qty">Register Sayısı</label>
-            <input type="number" id="mm_qty" min="1" max="64" value="1" placeholder="1–64">
-          </div>
-          <div class="form-row" id="mm_write_single_row" style="display:none;">
-            <label for="mm_value_single">Değer (1 register)</label>
-            <input type="text" id="mm_value_single" placeholder="0–65535 veya 0x0000" value="0">
-          </div>
-          <div class="form-row" id="mm_write_multi_row" style="display:none;">
-            <label for="mm_value_multi">Değerler (virgülle ayırın)</label>
-            <input type="text" id="mm_value_multi" placeholder="örn. 100, 200, 0x1234">
-          </div>
-          <div class="flex gap-2.5 mt-2">
-            <button type="button" id="mm_btn_read" class="btn-action" disabled>Modbus Oku</button>
-            <button type="button" id="mm_btn_write" class="btn-action" disabled>Modbus Yaz</button>
-          </div>
-          <div class="mt-4 p-3.5 bg-gray-50 rounded-lg border border-gray-200">
-            <div class="font-semibold text-gray-600 mb-2">Sonuç</div>
-            <div id="mm_result_status" class="text-base text-gray-700">—</div>
-            <div id="mm_result_data" class="mt-2 font-mono text-sm leading-relaxed text-gray-800"></div>
-          </div>
+    <!-- ==================== PAGE: Dashboard ==================== -->
+    <div id="page-dashboard" class="page">
+      <div class="mx-1.5 mt-3 sm:max-w-md sm:mx-auto">
+        <div class="mb-3 px-1">
+          <select id="device-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:border-brand focus:outline-none">
+            <option value="">-- Cihaz Seçin --</option>
+          </select>
+        </div>
+        <div id="dashboard-content" class="px-1">
+          <p class="text-gray-400 text-center mt-8 text-sm">Lütfen bir enerji analizör modeli seçin.</p>
         </div>
       </div>
+    </div>
 
-      <div class="tab-content" id="tab-firmware" style="display:none;">
-        <form class="p-3 sm:p-5 max-w-3xl mx-auto">
-          <div class="mb-6 text-center">
-            <h3 class="text-lg sm:text-xl font-semibold text-gray-700 mb-2 mt-0">Firmware Güncelleme</h3>
-            <div class="text-gray-500 text-sm">Cihazın firmware'ini güncellemek için .bin uzantılı dosya seçin.</div>
-          </div>
-
-          <div class="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6 w-full box-border">
-            <div class="mb-5 w-full">
-              <input type="file" id="firmware-file" accept=".bin" disabled class="hidden">
-              <label for="firmware-file" class="file-input-label flex items-center justify-center gap-2 w-full px-4 py-3 bg-brand text-white rounded-lg cursor-pointer hover:bg-brand-dark transition-colors text-base whitespace-nowrap overflow-hidden text-ellipsis box-border">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 1v14M4 9l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M3 15v2h14v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                Firmware Dosyası Seç (.bin)
-              </label>
-            </div>
-
-            <div class="firmware-details bg-white rounded-lg p-4 my-4" style="display: none;">
-              <div class="flex items-center my-2 text-sm">
-                <span class="text-gray-500 w-20">Dosya:</span>
-                <span id="firmware-filename" class="text-gray-700 font-mono">-</span>
-              </div>
-              <div class="flex items-center my-2 text-sm">
-                <span class="text-gray-500 w-20">Boyut:</span>
-                <span id="firmware-size" class="text-gray-700 font-mono">-</span>
-              </div>
-            </div>
-
-            <div class="progress-container my-6" style="display: none;">
-              <div class="flex justify-between items-center mb-2 text-gray-600 text-sm">
-                <span>Yükleme Durumu</span>
-                <span class="progress-text">%0</span>
-              </div>
-              <div class="h-3 bg-gray-200 rounded-md overflow-hidden">
-                <div class="progress h-full bg-brand transition-[width] duration-300" style="width: 0%"></div>
-              </div>
-            </div>
-
-            <div class="flex flex-col sm:flex-row gap-3 mt-6">
-              <button type="button" id="start-upload" class="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-base cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border-none" disabled>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 1v11m-4-4l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M2 13v1h12v-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                Yüklemeyi Başlat
-              </button>
-              <button type="button" id="cancel-upload" class="flex-1 flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-base cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border-none" disabled>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 3l10 10m-10 0l10-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                İptal
-              </button>
-            </div>
-            <div class="mt-2.5 text-base text-gray-600 font-medium tracking-wide">
-              <span id="firmware-timer-label">Süre:</span>
-              <span id="firmware-timer-value" class="font-mono text-brand ml-1">00:00</span>
-            </div>
-          </div>
-
-          <div class="bg-gray-50 rounded-xl p-4 sm:p-5">
-            <div class="flex justify-between items-center mb-3 text-gray-600">
-              <span class="font-medium">İşlem Kayıtları</span>
-              <button type="button" id="clear-firmware-log" class="bg-transparent border border-gray-300 text-gray-500 px-3 py-1.5 rounded-md flex items-center gap-1.5 text-sm hover:bg-gray-100 hover:border-gray-400 transition-colors cursor-pointer">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 4h12M5 4V2h6v2M4 6v8h8V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                Temizle
-              </button>
-            </div>
-            <div id="firmware-log-content" class="max-h-[200px] overflow-y-auto bg-gray-50 border border-gray-200 rounded-lg p-3 font-mono text-xs leading-relaxed"></div>
-          </div>
-        </form>
+    <!-- ==================== PAGE: Charts ==================== -->
+    <div id="page-charts" class="page">
+      <div class="mx-1.5 mt-3 lg:mx-6">
+        <div id="charts-content" class="px-1"></div>
       </div>
+    </div>
 
-      <div class="flex items-center gap-2 mt-4">
-        <button id="write_all" class="btn-action" disabled>Yaz</button>
-        <button id="read_all" type="button" class="btn-action" disabled>Oku</button>
-        <div class="flex-1"></div>
-        <button id="commit_and_restart" type="button" class="btn-action" disabled>Cihazı Yeniden Başlat</button>
-      </div>
+    <!-- ==================== PAGE: Settings (existing UI) ==================== -->
+    <div id="page-settings" class="page">
+      <main class="mx-1.5 mt-1.5 p-4 bg-white rounded-lg sm:max-w-md sm:mx-auto sm:mt-4 sm:rounded-xl sm:shadow-md sm:p-6">
 
-      <div class="mt-4 text-right">
-        <button id="toggleLog" class="btn-secondary">Logu Göster/Gizle</button>
-      </div>
-      <div id="log" class="bg-gray-900 text-green-200 font-mono text-sm rounded-lg mt-2 p-3 min-h-[60px] max-h-[180px] overflow-y-auto text-left" style="display:none;"></div>
-    </main>
+        <div class="flex justify-center mb-4 border-b-2 border-gray-200 bg-white">
+          <button class="tab-modern flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="lorawan" style="display:none;">LoRaWAN</button>
+          <button class="tab-modern active flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="modbus">Modbus Ayarları</button>
+          <button class="tab-modern flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="manual-modbus">Manuel Modbus</button>
+          <button class="tab-modern flex-1 min-w-[80px] sm:min-w-[120px] py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="firmware">Firmware</button>
+        </div>
 
-    <div class="app-version fixed bg-black/10 text-brand font-semibold text-sm px-3.5 py-1 rounded-full z-[9999] shadow-sm pointer-events-none left-1/2 -translate-x-1/2 bottom-1.5 sm:left-auto sm:right-3 sm:translate-x-0 sm:bottom-2.5">v1.0.3</div>
+        <div class="tab-content" id="tab-lorawan" style="display:none;">
+          <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
+            <div class="form-row">
+              <label for="device_eui">Device EUI</label>
+              <input type="text" id="device_eui" name="device_eui" autocomplete="off" disabled maxlength="16">
+            </div>
+            <div class="form-row">
+              <label for="app_eui">APP EUI</label>
+              <input type="text" id="app_eui" name="app_eui" autocomplete="off" disabled maxlength="16">
+            </div>
+            <div class="form-row">
+              <label for="app_key">APP Key</label>
+              <input type="text" id="app_key" name="app_key" autocomplete="off" disabled maxlength="32">
+            </div>
+            <div class="form-row">
+              <label for="platform">Platform</label>
+              <input type="text" id="platform" name="platform" autocomplete="off" disabled>
+            </div>
+            <div class="form-row">
+              <label for="freq">Freq</label>
+              <input type="text" id="freq" name="freq" autocomplete="off" disabled>
+            </div>
+            <div class="form-row">
+              <label for="pckpo">PckPo</label>
+              <input type="text" id="pckpo" name="pckpo" autocomplete="off" disabled>
+            </div>
+            <div class="form-row">
+              <label for="adr">ADR</label>
+              <input type="text" id="adr" name="adr" autocomplete="off" disabled>
+            </div>
+          </form>
+        </div>
+
+        <div class="tab-content" id="tab-modbus">
+          <p class="text-gray-500 text-sm mb-4">Enerji analizörüne bağlanmak için Modbus RTU hattı ayarları.</p>
+          <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
+            <div class="form-row"><label for="mb_addr">Addr</label><input type="number" id="mb_addr" disabled></div>
+            <div class="form-row"><label for="mb_baud">Baud</label><input type="text" id="mb_baud" disabled></div>
+            <div class="form-row"><label for="mb_parity">Parity</label><input type="number" id="mb_parity" disabled></div>
+            <div class="form-row"><label for="mb_stopbits">StopBits</label><input type="number" id="mb_stopbits" disabled></div>
+            <div class="form-row"><label for="mb_databits">DataBits</label><input type="number" id="mb_databits" disabled></div>
+            <div class="form-row"><label for="mb_timeout">Timeout</label><input type="text" id="mb_timeout" disabled></div>
+            <div class="form-row"><label for="mb_polling">Polling</label><input type="text" id="mb_polling" disabled></div>
+            <div class="form-row"><label for="mb_func">Func</label><input type="number" id="mb_func" disabled></div>
+            <div class="form-row"><label for="mb_regstart">Reg Start</label><input type="number" id="mb_regstart" disabled></div>
+            <div class="form-row"><label for="mb_reglen">Reg Len</label><input type="number" id="mb_reglen" disabled></div>
+          </form>
+        </div>
+
+        <div class="tab-content" id="tab-manual-modbus" style="display:none;">
+          <p class="text-gray-500 text-sm mb-4">Bağlı cihaz üzerinden Modbus okuma/yazma isteği gönderin. (Query/Response GATT karakteristikleri)</p>
+          <div class="flex flex-col gap-3.5">
+            <div class="form-row">
+              <label for="mm_slave">Slave Adresi</label>
+              <input type="number" id="mm_slave" min="1" max="247" value="1" placeholder="1–247">
+            </div>
+            <div class="form-row">
+              <label for="mm_func">Fonksiyon</label>
+              <select id="mm_func">
+                <option value="3">0x03 – Read Holding Registers</option>
+                <option value="4">0x04 – Read Input Registers</option>
+                <option value="6">0x06 – Write Single Register</option>
+                <option value="16">0x10 – Write Multiple Registers</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="mm_start">Başlangıç Adresi</label>
+              <input type="number" id="mm_start" min="0" max="65535" value="0" placeholder="0–65535">
+            </div>
+            <div class="form-row" id="mm_qty_row">
+              <label for="mm_qty">Register Sayısı</label>
+              <input type="number" id="mm_qty" min="1" max="64" value="1" placeholder="1–64">
+            </div>
+            <div class="form-row" id="mm_write_single_row" style="display:none;">
+              <label for="mm_value_single">Değer (1 register)</label>
+              <input type="text" id="mm_value_single" placeholder="0–65535 veya 0x0000" value="0">
+            </div>
+            <div class="form-row" id="mm_write_multi_row" style="display:none;">
+              <label for="mm_value_multi">Değerler (virgülle ayırın)</label>
+              <input type="text" id="mm_value_multi" placeholder="örn. 100, 200, 0x1234">
+            </div>
+            <div class="flex gap-2.5 mt-2">
+              <button type="button" id="mm_btn_read" class="btn-action" disabled>Modbus Oku</button>
+              <button type="button" id="mm_btn_write" class="btn-action" disabled>Modbus Yaz</button>
+            </div>
+            <div class="mt-4 p-3.5 bg-gray-50 rounded-lg border border-gray-200">
+              <div class="font-semibold text-gray-600 mb-2">Sonuç</div>
+              <div id="mm_result_status" class="text-base text-gray-700">—</div>
+              <div id="mm_result_data" class="mt-2 font-mono text-sm leading-relaxed text-gray-800"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-firmware" style="display:none;">
+          <form class="p-3 sm:p-5 max-w-3xl mx-auto">
+            <div class="mb-6 text-center">
+              <h3 class="text-lg sm:text-xl font-semibold text-gray-700 mb-2 mt-0">Firmware Güncelleme</h3>
+              <div class="text-gray-500 text-sm">Cihazın firmware'ini güncellemek için .bin uzantılı dosya seçin.</div>
+            </div>
+
+            <div class="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6 w-full box-border">
+              <div class="mb-5 w-full">
+                <input type="file" id="firmware-file" accept=".bin" disabled class="hidden">
+                <label for="firmware-file" class="file-input-label flex items-center justify-center gap-2 w-full px-4 py-3 bg-brand text-white rounded-lg cursor-pointer hover:bg-brand-dark transition-colors text-base whitespace-nowrap overflow-hidden text-ellipsis box-border">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 1v14M4 9l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M3 15v2h14v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  Firmware Dosyası Seç (.bin)
+                </label>
+              </div>
+
+              <div class="firmware-details bg-white rounded-lg p-4 my-4" style="display: none;">
+                <div class="flex items-center my-2 text-sm">
+                  <span class="text-gray-500 w-20">Dosya:</span>
+                  <span id="firmware-filename" class="text-gray-700 font-mono">-</span>
+                </div>
+                <div class="flex items-center my-2 text-sm">
+                  <span class="text-gray-500 w-20">Boyut:</span>
+                  <span id="firmware-size" class="text-gray-700 font-mono">-</span>
+                </div>
+              </div>
+
+              <div class="progress-container my-6" style="display: none;">
+                <div class="flex justify-between items-center mb-2 text-gray-600 text-sm">
+                  <span>Yükleme Durumu</span>
+                  <span class="progress-text">%0</span>
+                </div>
+                <div class="h-3 bg-gray-200 rounded-md overflow-hidden">
+                  <div class="progress h-full bg-brand transition-[width] duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row gap-3 mt-6">
+                <button type="button" id="start-upload" class="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-base cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border-none" disabled>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1v11m-4-4l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M2 13v1h12v-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  Yüklemeyi Başlat
+                </button>
+                <button type="button" id="cancel-upload" class="flex-1 flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-base cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border-none" disabled>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 3l10 10m-10 0l10-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  İptal
+                </button>
+              </div>
+              <div class="mt-2.5 text-base text-gray-600 font-medium tracking-wide">
+                <span id="firmware-timer-label">Süre:</span>
+                <span id="firmware-timer-value" class="font-mono text-brand ml-1">00:00</span>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-xl p-4 sm:p-5">
+              <div class="flex justify-between items-center mb-3 text-gray-600">
+                <span class="font-medium">İşlem Kayıtları</span>
+                <button type="button" id="clear-firmware-log" class="bg-transparent border border-gray-300 text-gray-500 px-3 py-1.5 rounded-md flex items-center gap-1.5 text-sm hover:bg-gray-100 hover:border-gray-400 transition-colors cursor-pointer">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2 4h12M5 4V2h6v2M4 6v8h8V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  Temizle
+                </button>
+              </div>
+              <div id="firmware-log-content" class="max-h-[200px] overflow-y-auto bg-gray-50 border border-gray-200 rounded-lg p-3 font-mono text-xs leading-relaxed"></div>
+            </div>
+          </form>
+        </div>
+
+        <div class="flex items-center gap-2 mt-4">
+          <button id="write_all" class="btn-action" disabled>Yaz</button>
+          <button id="read_all" type="button" class="btn-action" disabled>Oku</button>
+          <div class="flex-1"></div>
+          <button id="commit_and_restart" type="button" class="btn-action" disabled>Cihazı Yeniden Başlat</button>
+        </div>
+
+        <div class="mt-4 text-right">
+          <button id="toggleLog" class="btn-secondary">Logu Göster/Gizle</button>
+        </div>
+        <div id="log" class="bg-gray-900 text-green-200 font-mono text-sm rounded-lg mt-2 p-3 min-h-[60px] max-h-[180px] overflow-y-auto text-left" style="display:none;"></div>
+      </main>
+    </div>
+
+    <!-- ==================== Bottom Navigation ==================== -->
+    <nav id="bottom-nav">
+      <button class="nav-btn active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+        <span>Analizör</span>
+      </button>
+      <button class="nav-btn" data-page="charts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        <span>Grafik</span>
+      </button>
+      <button class="nav-btn" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Ayarlar</span>
+      </button>
+    </nav>
+
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.4</div>
   </body>
 </html>
