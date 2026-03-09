@@ -406,6 +406,10 @@ function toggleUIConnected(connected) {
     if (writeBtn) writeBtn.disabled = false;
     if (commitBtn) commitBtn.disabled = false;
     if (readBtn) readBtn.disabled = false;
+    const mmRead = document.getElementById('mm_btn_read');
+    const mmWrite = document.getElementById('mm_btn_write');
+    if (mmRead) mmRead.disabled = false;
+    if (mmWrite) mmWrite.disabled = false;
   } else {
     if (status) {
       status.textContent = 'Bağlı Değil';
@@ -428,6 +432,10 @@ function toggleUIConnected(connected) {
     if (writeBtn) writeBtn.disabled = true;
     if (commitBtn) commitBtn.disabled = true;
     if (readBtn) readBtn.disabled = true;
+    const mmRead = document.getElementById('mm_btn_read');
+    const mmWrite = document.getElementById('mm_btn_write');
+    if (mmRead) mmRead.disabled = true;
+    if (mmWrite) mmWrite.disabled = true;
   }
   const butConnect = document.getElementById('butConnect');
   if (butConnect) butConnect.textContent = lbl;
@@ -948,6 +956,8 @@ function defineModbusUUIDs() {
   window.MB_FUNC_UUID     = '0000a408-0000-1000-8000-00805f9b34fb';
   window.MB_REGSTART_UUID = '0000a409-0000-1000-8000-00805f9b34fb';
   window.MB_REGLEN_UUID   = '0000a40a-0000-1000-8000-00805f9b34fb';
+  window.MODBUS_QUERY_CHAR_UUID  = '0000a40b-0000-1000-8000-00805f9b34fb';
+  window.MODBUS_RESPONSE_CHAR_UUID = '0000a40c-0000-1000-8000-00805f9b34fb';
 }
 
 // Modbus karakteristiklerini oku
@@ -969,6 +979,84 @@ async function readModbusAll() {
     logMsg('Modbus verileri okunamadı: ' + e);
   }
 }
+
+// ——— Manuel Modbus (Query/Response) ———
+let manualModbusTransId = 0;
+
+/**
+ * Manuel Modbus istek paketi oluşturur. Tüm sayısal alanlar big-endian.
+ * @param {number} slaveId 1–247
+ * @param {number} func 3, 4, 6 veya 16
+ * @param {number} startAddr 0–65535
+ * @param {number} qty 1–64 (okuma veya 0x10 yazma)
+ * @param {number[]} [values] 0x06 için [value], 0x10 için [v1, v2, ...]
+ * @returns {Uint8Array} Paket (max 150 byte)
+ */
+function buildModbusQueryPacket(slaveId, func, startAddr, qty, values) {
+  if (slaveId < 1 || slaveId > 247) return null;
+  const f = parseInt(func, 10);
+  let length = 7;
+  if (f === 0x06) length = 9;
+  else if (f === 0x10) length = 7 + (qty * 2);
+  if (length > 150) return null;
+  const buf = new ArrayBuffer(length);
+  const view = new DataView(buf);
+  const tId = (manualModbusTransId++) & 0xff;
+  view.setUint8(0, tId);
+  view.setUint8(1, slaveId);
+  view.setUint8(2, f);
+  view.setUint16(3, startAddr, false);
+  view.setUint16(5, qty, false);
+  if (f === 0x06 && values && values.length >= 1) {
+    view.setUint16(7, values[0] & 0xffff, false);
+  } else if (f === 0x10 && values && values.length >= qty) {
+    for (let i = 0; i < qty; i++) {
+      view.setUint16(7 + i * 2, values[i] & 0xffff, false);
+    }
+  }
+  return new Uint8Array(buf);
+}
+
+/**
+ * Response buffer'ını parse eder: transId, status, (okuma ise) register dizisi.
+ * @param {DataView} view
+ * @returns {{ transId: number, status: number, registers?: number[] }}
+ */
+function parseModbusResponse(view) {
+  if (view.byteLength < 2) return { transId: 0, status: 0xff };
+  const transId = view.getUint8(0);
+  const status = view.getUint8(1);
+  const result = { transId, status };
+  if (status === 0 && view.byteLength >= 4) {
+    const dataLen = view.byteLength - 2;
+    const regCount = dataLen >> 1;
+    result.registers = [];
+    for (let i = 0; i < regCount; i++) {
+      result.registers.push(view.getUint16(2 + i * 2, false));
+    }
+  }
+  return result;
+}
+
+function statusCodeToText(code) {
+  const map = { 0: 'Başarı', 0x01: 'Illegal function', 0x03: 'Illegal data value', 0xE4: 'Invalid slave' };
+  return map[code] != null ? map[code] : 'Hata kodu: 0x' + (code & 0xff).toString(16).toUpperCase();
+}
+
+/**
+ * Query karakteristiğine yazar, kısa bekleyip Response karakteristiğinden okur.
+ */
+async function sendModbusRequest(packet) {
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+  const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
+  const queryChar = await service.getCharacteristic(MODBUS_QUERY_CHAR_UUID);
+  const responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+  await queryChar.writeValue(packet);
+  await sleep(180);
+  const value = await responseChar.readValue();
+  return parseModbusResponse(value);
+}
+
 function bufferToString(dataView) {
   let str = '';
   for (let i = 0; i < dataView.byteLength; i++) {
@@ -1142,6 +1230,123 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ——— Manuel Modbus sekmesi ———
+  const mmFunc = document.getElementById('mm_func');
+  const mmQtyRow = document.getElementById('mm_qty_row');
+  const mmWriteSingleRow = document.getElementById('mm_write_single_row');
+  const mmWriteMultiRow = document.getElementById('mm_write_multi_row');
+  const mmResultStatus = document.getElementById('mm_result_status');
+  const mmResultData = document.getElementById('mm_result_data');
+
+  function updateManualModbusFields() {
+    const v = mmFunc ? parseInt(mmFunc.value, 10) : 3;
+    if (mmQtyRow) mmQtyRow.style.display = (v === 3 || v === 4 || v === 16) ? '' : 'none';
+    if (mmWriteSingleRow) mmWriteSingleRow.style.display = (v === 6) ? '' : 'none';
+    if (mmWriteMultiRow) mmWriteMultiRow.style.display = (v === 16) ? '' : 'none';
+  }
+  if (mmFunc) {
+    mmFunc.addEventListener('change', updateManualModbusFields);
+    updateManualModbusFields();
+  }
+
+  function parseRegisterValue(str) {
+    const s = String(str).trim();
+    if (/^0x[0-9a-fA-F]+$/.test(s)) return parseInt(s, 16) & 0xffff;
+    const n = parseInt(s, 10);
+    if (!Number.isNaN(n) && n >= 0 && n <= 65535) return n;
+    return null;
+  }
+
+  function setManualModbusResult(statusText, dataHtml) {
+    if (mmResultStatus) mmResultStatus.textContent = statusText;
+    if (mmResultData) {
+      mmResultData.innerHTML = dataHtml != null ? dataHtml : '';
+      mmResultData.style.display = dataHtml ? 'block' : 'none';
+    }
+  }
+
+  document.getElementById('mm_btn_read')?.addEventListener('click', async () => {
+    const slave = parseInt(document.getElementById('mm_slave').value, 10);
+    const func = parseInt(document.getElementById('mm_func').value, 10);
+    const start = parseInt(document.getElementById('mm_start').value, 10) || 0;
+    const qty = parseInt(document.getElementById('mm_qty').value, 10) || 1;
+    if (func !== 3 && func !== 4) return;
+    if (qty < 1 || qty > 64) {
+      setManualModbusResult('Hata', 'Register sayısı 1–64 olmalı.');
+      return;
+    }
+    const packet = buildModbusQueryPacket(slave, func, start, qty);
+    if (!packet) {
+      setManualModbusResult('Hata', 'Paket oluşturulamadı.');
+      return;
+    }
+    setManualModbusResult('Gönderiliyor…', '');
+    try {
+      const res = await sendModbusRequest(packet);
+      const statusStr = statusCodeToText(res.status);
+      setManualModbusResult(statusStr, res.registers && res.registers.length
+        ? '<div class="mm-regs">' + res.registers.map((r, i) => 'Reg[' + i + '] = ' + r + ' (0x' + r.toString(16).toUpperCase() + ')').join('<br>') + '</div>'
+        : (res.status !== 0 ? '' : '—'));
+      if (res.status === 0) logMsg('Manuel Modbus okuma başarılı.');
+      else logMsg('Manuel Modbus cevap: ' + statusStr);
+    } catch (e) {
+      setManualModbusResult('Hata', String(e.message || e));
+      logMsg('Manuel Modbus okuma hatası: ' + e);
+    }
+  });
+
+  document.getElementById('mm_btn_write')?.addEventListener('click', async () => {
+    const slave = parseInt(document.getElementById('mm_slave').value, 10);
+    const func = parseInt(document.getElementById('mm_func').value, 10);
+    const start = parseInt(document.getElementById('mm_start').value, 10) || 0;
+    const qty = parseInt(document.getElementById('mm_qty').value, 10) || 1;
+    if (func !== 6 && func !== 16) return;
+    let values = [];
+    if (func === 6) {
+      const v = parseRegisterValue(document.getElementById('mm_value_single').value);
+      if (v === null) {
+        setManualModbusResult('Hata', 'Tek register değeri 0–65535 veya 0xXXXX olmalı.');
+        return;
+      }
+      values = [v];
+    } else {
+      const raw = document.getElementById('mm_value_multi').value;
+      const parts = raw.split(/[\s,]+/).filter(Boolean);
+      if (parts.length < 1 || parts.length > 64) {
+        setManualModbusResult('Hata', '1–64 adet değer girin (virgül veya boşlukla).');
+        return;
+      }
+      for (let i = 0; i < parts.length; i++) {
+        const v = parseRegisterValue(parts[i]);
+        if (v === null) {
+          setManualModbusResult('Hata', 'Geçersiz değer: ' + parts[i]);
+          return;
+        }
+        values.push(v);
+      }
+      if (values.length !== qty) {
+        setManualModbusResult('Hata', 'Değer sayısı (' + values.length + ') register sayısıyla (' + qty + ') eşleşmiyor.');
+        return;
+      }
+    }
+    const packet = buildModbusQueryPacket(slave, func, start, func === 6 ? 1 : qty, values);
+    if (!packet) {
+      setManualModbusResult('Hata', 'Paket oluşturulamadı.');
+      return;
+    }
+    setManualModbusResult('Gönderiliyor…', '');
+    try {
+      const res = await sendModbusRequest(packet);
+      const statusStr = statusCodeToText(res.status);
+      setManualModbusResult(statusStr, res.status === 0 ? 'Yazma başarılı.' : '');
+      if (res.status === 0) logMsg('Manuel Modbus yazma başarılı.');
+      else logMsg('Manuel Modbus cevap: ' + statusStr);
+    } catch (e) {
+      setManualModbusResult('Hata', String(e.message || e));
+      logMsg('Manuel Modbus yazma hatası: ' + e);
+    }
+  });
 });
 
 // Yaz butonuna basıldığında inputlarda eksik karakter varsa uyarı göster
