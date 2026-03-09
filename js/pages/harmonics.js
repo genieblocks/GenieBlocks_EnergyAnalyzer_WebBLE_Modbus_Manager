@@ -39,10 +39,20 @@
     html += '</div>';
 
     html += '<div class="flex items-center gap-2 mb-3 flex-wrap">';
+    var categoryLabels = {
+      current: 'Akım Harmonikleri',
+      voltage: 'Gerilim Harmonikleri',
+      voltagePN: 'Gerilim (Faz-Nötr) Harmonikleri',
+      voltageLL: 'Gerilim (Faz-Faz) Harmonikleri'
+    };
+    var harmKeys = Object.keys(device.harmonics);
+    if (harmKeys.indexOf(currentCategory) === -1) currentCategory = harmKeys[0];
+
     html += '<select id="harm-category" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white">';
-    html += '<option value="current">Akım Harmonikleri</option>';
-    html += '<option value="voltagePN">Gerilim (Faz-Nötr) Harmonikleri</option>';
-    html += '<option value="voltageLL">Gerilim (Faz-Faz) Harmonikleri</option>';
+    harmKeys.forEach(function(key) {
+      html += '<option value="' + key + '"' + (key === currentCategory ? ' selected' : '') + '>' +
+              (categoryLabels[key] || key) + '</option>';
+    });
     html += '</select>';
     html += '<select id="harm-phase" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"></select>';
     html += '<button id="harm-refresh" class="px-3 py-1.5 rounded-full bg-brand text-white font-medium text-sm border-none cursor-pointer hover:bg-brand-dark transition-colors">Yenile</button>';
@@ -107,18 +117,24 @@
     });
   }
 
-  function generateDemoHarmonics(maxOrder) {
-    var data = [];
-    for (var i = 2; i <= maxOrder; i++) {
+  function generateDemoHarmonicsForOrders(orders) {
+    return orders.map(function(order) {
       var base;
-      if (i <= 5) base = 15 - i * 2;
-      else if (i <= 11) base = 5 - (i - 5) * 0.5;
-      else if (i <= 25) base = 2 - (i - 11) * 0.05;
+      if (order <= 1) base = 100;
+      else if (order <= 5) base = 15 - order * 2;
+      else if (order <= 11) base = 5 - (order - 5) * 0.5;
+      else if (order <= 25) base = 2 - (order - 11) * 0.05;
       else base = 0.5;
-      var val = Math.max(0.1, base + (Math.random() - 0.5) * base * 0.4);
-      data.push(parseFloat(val.toFixed(1)));
-    }
-    return data;
+      var val = Math.max(0.1, base + (Math.random() - 0.5) * Math.abs(base) * 0.4);
+      return parseFloat(val.toFixed(1));
+    });
+  }
+
+  function getHarmonicOrders(harm) {
+    if (harm.orders) return harm.orders;
+    var list = [];
+    for (var i = 2; i <= (harm.maxOrder || 51); i++) list.push(i);
+    return list;
   }
 
   function renderChart() {
@@ -129,14 +145,15 @@
     if (!harm) return;
 
     var phaseName = harm.phases[currentPhaseIdx] || 'L1';
-    var data = generateDemoHarmonics(harm.maxOrder);
-    var categories = [];
-    for (var i = 2; i <= harm.maxOrder; i++) {
-      categories.push(i + '.');
-    }
+    var orders = getHarmonicOrders(harm);
+    var data = generateDemoHarmonicsForOrders(orders);
+    var categories = orders.map(function(o) { return o + '.'; });
 
-    var catLabel = currentCategory === 'current' ? 'Akım' :
-                   currentCategory === 'voltagePN' ? 'Gerilim (F-N)' : 'Gerilim (F-F)';
+    var catLabelsShort = {
+      current: 'Akım', voltage: 'Gerilim',
+      voltagePN: 'Gerilim (F-N)', voltageLL: 'Gerilim (F-F)'
+    };
+    var catLabel = catLabelsShort[currentCategory] || currentCategory;
 
     harmonicChart.setOption({
       title: {
@@ -180,10 +197,12 @@
       }]
     }, true);
 
-    var thd = data.reduce(function(sum, v) { return sum + v * v; }, 0);
-    thd = Math.sqrt(thd);
-    var maxVal = Math.max.apply(null, data);
-    var maxIdx = data.indexOf(maxVal) + 2;
+    var nonFundamental = [];
+    orders.forEach(function(o, idx) {
+      if (o !== 1) nonFundamental.push({ order: o, value: data[idx] });
+    });
+    var thd = Math.sqrt(nonFundamental.reduce(function(sum, item) { return sum + item.value * item.value; }, 0));
+    var maxItem = nonFundamental.reduce(function(best, item) { return item.value > best.value ? item : best; }, { order: 0, value: -Infinity });
 
     var statsHtml = '';
     statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
@@ -192,12 +211,12 @@
     statsHtml += '</div>';
     statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">En Yüksek</div>';
-    statsHtml += '<div class="text-lg font-bold text-red-600">' + maxVal.toFixed(1) + '%</div>';
-    statsHtml += '<div class="text-xs text-gray-400">' + maxIdx + '. harmonik</div>';
+    statsHtml += '<div class="text-lg font-bold text-red-600">' + maxItem.value.toFixed(1) + '%</div>';
+    statsHtml += '<div class="text-xs text-gray-400">' + maxItem.order + '. harmonik</div>';
     statsHtml += '</div>';
     statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">Toplam</div>';
-    statsHtml += '<div class="text-lg font-bold text-gray-800">' + (harm.maxOrder - 1) + '</div>';
+    statsHtml += '<div class="text-lg font-bold text-gray-800">' + nonFundamental.length + '</div>';
     statsHtml += '<div class="text-xs text-gray-400">harmonik bileşen</div>';
     statsHtml += '</div>';
 

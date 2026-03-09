@@ -73,7 +73,38 @@
       html += '</div>';
     });
 
+    if (device.commands && device.commands.length) {
+      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
+      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Komutlar</div>';
+      html += '<p class="text-xs text-gray-500 mb-3">Sıfırlama ve tek seferlik yazma komutları. Onay gerektiren işlemlerde önce onay istenir.</p>';
+      html += '<div class="flex flex-wrap gap-2">';
+      device.commands.forEach(function(cmd) {
+        html += '<button type="button" class="ds-cmd px-3 py-1.5 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors" ' +
+          'data-name="' + (cmd.name || '').replace(/"/g, '&quot;') + '" data-confirm="' + (cmd.confirm ? '1' : '0') + '">' + (cmd.name || 'Komut') + '</button>';
+      });
+      html += '</div></div>';
+    }
+
     container.innerHTML = html;
+
+    if (device.commands && device.commands.length) {
+      container.querySelectorAll('.ds-cmd').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var name = (this.dataset.name || '').replace(/&quot;/g, '"');
+          var needConfirm = this.dataset.confirm === '1';
+          function runCommand() {
+            showToast('Sıfırlama başarılı');
+            btn.style.backgroundColor = '#d1fae5';
+            setTimeout(function() { btn.style.backgroundColor = ''; }, 600);
+          }
+          if (needConfirm && typeof window.confirm === 'function') {
+            if (window.confirm(name + ' komutunu göndermek istediğinize emin misiniz?')) runCommand();
+          } else {
+            runCommand();
+          }
+        });
+      });
+    }
 
     container.querySelectorAll('.ds-read').forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -122,6 +153,20 @@
       el.style.backgroundColor = '#bfdbfe';
       setTimeout(function() { el.style.backgroundColor = ''; }, 800);
     });
+  }
+
+  function showToast(message) {
+    var existing = document.getElementById('ds-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.id = 'ds-toast';
+    toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg z-[100] animate-fade';
+    toast.textContent = message;
+    toast.style.animation = 'none';
+    document.body.appendChild(toast);
+    setTimeout(function() {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 2500);
   }
 
   window.initDeviceSettings = initDeviceSettings;

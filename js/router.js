@@ -35,6 +35,12 @@
         window.refreshDeviceSettings();
       });
     }
+
+    if (pageId === 'io-monitor' && typeof window.refreshIoMonitor === 'function') {
+      requestAnimationFrame(function() {
+        window.refreshIoMonitor();
+      });
+    }
   }
 
   window.showPage = showPage;

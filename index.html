@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.5">
+<html lang="en" data-version="v1.0.6">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -104,8 +104,9 @@
     <script src="js/pages/charts.js" defer></script>
     <script src="js/pages/harmonics.js" defer></script>
     <script src="js/pages/device-settings.js" defer></script>
+    <script src="js/pages/io-monitor.js" defer></script>
     <script src="js/router.js" defer></script>
-    <script type="module" src="js/script.js?v=1.0.5" defer></script>
+    <script type="module" src="js/script.js?v=1.0.6" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
@@ -166,6 +167,13 @@
     <div id="page-device-settings" class="page">
       <div class="mx-1.5 mt-3 sm:max-w-md sm:mx-auto">
         <div id="device-settings-content" class="px-1"></div>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: I/O Monitor ==================== -->
+    <div id="page-io-monitor" class="page">
+      <div class="mx-1.5 mt-3 sm:max-w-2xl sm:mx-auto">
+        <div id="io-monitor-content" class="px-1"></div>
       </div>
     </div>
 
@@ -390,6 +398,12 @@
         </svg>
         <span>Konfig</span>
       </button>
+      <button class="nav-btn" data-page="io-monitor">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+        </svg>
+        <span>I/O</span>
+      </button>
       <button class="nav-btn" data-page="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -399,6 +413,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.5</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.6</div>
   </body>
 </html>
