@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.4">
+<html lang="en" data-version="v1.0.5">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -102,8 +102,10 @@
     <script src="js/device-registry.js" defer></script>
     <script src="js/pages/dashboard.js" defer></script>
     <script src="js/pages/charts.js" defer></script>
+    <script src="js/pages/harmonics.js" defer></script>
+    <script src="js/pages/device-settings.js" defer></script>
     <script src="js/router.js" defer></script>
-    <script type="module" src="js/script.js?v=1.0.4" defer></script>
+    <script type="module" src="js/script.js?v=1.0.5" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
@@ -150,6 +152,20 @@
     <div id="page-charts" class="page">
       <div class="mx-1.5 mt-3 lg:mx-6">
         <div id="charts-content" class="px-1"></div>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: Harmonics ==================== -->
+    <div id="page-harmonics" class="page">
+      <div class="mx-1.5 mt-3 sm:max-w-2xl sm:mx-auto">
+        <div id="harmonics-content" class="px-1"></div>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: Device Settings ==================== -->
+    <div id="page-device-settings" class="page">
+      <div class="mx-1.5 mt-3 sm:max-w-md sm:mx-auto">
+        <div id="device-settings-content" class="px-1"></div>
       </div>
     </div>
 
@@ -361,6 +377,19 @@
         </svg>
         <span>Grafik</span>
       </button>
+      <button class="nav-btn" data-page="harmonics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="17" rx="1"/>
+        </svg>
+        <span>Harmonik</span>
+      </button>
+      <button class="nav-btn" data-page="device-settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+        <span>Konfig</span>
+      </button>
       <button class="nav-btn" data-page="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -370,6 +399,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.4</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.5</div>
   </body>
 </html>

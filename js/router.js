@@ -23,6 +23,18 @@
         setTimeout(window.resizeAllCharts, 200);
       });
     }
+
+    if (pageId === 'harmonics' && typeof window.refreshHarmonics === 'function') {
+      requestAnimationFrame(function() {
+        window.refreshHarmonics();
+      });
+    }
+
+    if (pageId === 'device-settings' && typeof window.refreshDeviceSettings === 'function') {
+      requestAnimationFrame(function() {
+        window.refreshDeviceSettings();
+      });
+    }
   }
 
   window.showPage = showPage;
