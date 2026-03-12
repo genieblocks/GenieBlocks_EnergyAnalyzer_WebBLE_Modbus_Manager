@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.8">
+<html lang="en" data-version="v1.0.9">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -104,6 +104,7 @@
       }
       header.app-header {
         justify-content: flex-start !important;
+        flex-wrap: nowrap !important;
       }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -114,7 +115,7 @@
     <script src="js/pages/device-settings.js" defer></script>
     <script src="js/pages/io-monitor.js" defer></script>
     <script src="js/router.js" defer></script>
-    <script type="module" src="js/script.js?v=1.0.8" defer></script>
+    <script type="module" src="js/script.js?v=1.0.9" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
@@ -132,15 +133,14 @@
       </div>
     </div>
 
-    <header class="app-header flex flex-wrap items-center justify-start gap-2 sm:gap-3 px-3 py-2 sm:py-3 bg-white border-b-2 border-brand text-left" style="text-align: left; justify-content: flex-start;">
-      <img src="assets/genieblocks-logo.png" class="w-[70px] h-6 object-contain shrink-0" alt="">
-      <div class="flex flex-col min-w-0 max-w-[calc(100%-140px)] sm:max-w-none text-left shrink-0" style="text-align: left;">
-        <h1 class="text-sm sm:text-lg font-semibold text-brand m-0 leading-tight break-words line-clamp-2 text-left" style="text-align: left;">Enerji Analizörü</h1>
-        <span id="header-device-name" class="text-xs text-gray-400 break-words line-clamp-2 text-left" style="text-align: left;">Cihaz seçilmedi</span>
+    <header class="app-header flex flex-nowrap items-center gap-2 sm:gap-3 px-3 py-2 sm:py-3 bg-white border-b-2 border-brand text-left" style="text-align: left; justify-content: flex-start;">
+      <img src="assets/genieblocks-logo.png" class="w-14 h-6 sm:w-[70px] object-contain shrink-0" alt="">
+      <div class="flex flex-col min-w-0 flex-1 overflow-hidden text-left" style="text-align: left;">
+        <h1 class="text-sm sm:text-lg font-semibold text-brand m-0 leading-tight truncate text-left" style="text-align: left;">Enerji Analizörü</h1>
+        <span id="header-device-name" class="text-xs text-gray-400 truncate text-left" style="text-align: left;">Cihaz seçilmedi</span>
       </div>
-      <div class="flex-1 min-w-2" aria-hidden="true"></div>
-      <span id="connection-status" class="status disconnected text-xs font-medium px-3 py-1 rounded-full transition-colors whitespace-nowrap shrink-0">Bağlı Değil</span>
-      <button id="butConnect" type="button" class="px-3 py-1.5 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand-dark disabled:bg-brand-light disabled:cursor-not-allowed transition-colors cursor-pointer border-none whitespace-nowrap shrink-0">Bağlan</button>
+      <span id="connection-status" class="status disconnected text-xs font-medium px-2.5 sm:px-3 py-1 rounded-full transition-colors whitespace-nowrap shrink-0">Bağlı Değil</span>
+      <button id="butConnect" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand-dark disabled:bg-brand-light disabled:cursor-not-allowed transition-colors cursor-pointer border-none whitespace-nowrap shrink-0">Bağlan</button>
     </header>
 
     <!-- ==================== PAGE: Dashboard ==================== -->
@@ -421,6 +421,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.8</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.9</div>
   </body>
 </html>

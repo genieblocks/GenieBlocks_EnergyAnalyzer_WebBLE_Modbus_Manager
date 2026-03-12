@@ -1,6 +1,6 @@
 # Versiyonlama ve GitHub'a Gönderme Kuralı (versiyonlama.mdc)
 
-**Güncel Versiyon:** v1.0.8
+**Güncel Versiyon:** v1.0.9
 
 ## Agent ile Yürütme
 - **Versiyon güncelleme** ve **GitHub'a yükleme (push)** işlemleri bu Cursor agent üzerinden yürütülür.
