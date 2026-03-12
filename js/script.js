@@ -389,11 +389,13 @@ function convertJSON(chunk) {
 
 function toggleUIConnected(connected) {
   const status = document.getElementById('connection-status');
+  const demoBadge = document.getElementById('header-demo-badge');
   const commitBtn = document.getElementById('commit_and_restart');
   const readBtn = document.getElementById('read_all');
   let lbl = 'Cihaza Bağlan';
   if (connected) {
     lbl = 'Bağlantıyı Kes';
+    if (demoBadge) demoBadge.classList.add('hidden');
     if (status) {
       status.textContent = 'Bağlı';
       status.classList.remove('disconnected');
@@ -411,6 +413,7 @@ function toggleUIConnected(connected) {
     if (mmRead) mmRead.disabled = false;
     if (mmWrite) mmWrite.disabled = false;
   } else {
+    if (demoBadge) demoBadge.classList.remove('hidden');
     if (status) {
       status.textContent = 'Bağlı Değil';
       status.classList.remove('connected');

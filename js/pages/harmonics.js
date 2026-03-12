@@ -33,10 +33,6 @@
 
     var html = '';
 
-    html += '<div class="demo-banner flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm text-amber-700">';
-    html += '<span class="text-lg">&#9888;</span>';
-    html += '<span><strong>DEMO MOD</strong> — Harmonik verileri simülasyondur.</span>';
-    html += '</div>';
 
     html += '<div class="flex items-center gap-2 mb-3 flex-wrap">';
     var categoryLabels = {

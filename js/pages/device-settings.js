@@ -30,10 +30,6 @@
     var device = info.device;
     var html = '';
 
-    html += '<div class="demo-banner flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm text-amber-700">';
-    html += '<span class="text-lg">&#9888;</span>';
-    html += '<span><strong>DEMO MOD</strong> — Ayar değerleri simülasyondur. Gerçek cihaza BLE ile bağlanınca okuma/yazma yapılabilir.</span>';
-    html += '</div>';
 
     html += '<div class="text-sm text-gray-500 mb-3">' + device.name + ' — Cihaz Konfigürasyonu</div>';
 

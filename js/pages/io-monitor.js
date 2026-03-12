@@ -56,10 +56,6 @@
     var ios = device.ios;
     var html = '';
 
-    html += '<div class="demo-banner flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm text-amber-700">';
-    html += '<span class="text-lg">&#9888;</span>';
-    html += '<span><strong>DEMO MOD</strong> — I/O değerleri simülasyondur. Gerçek cihaza BLE ile bağlanınca okuma/yazma yapılabilir.</span>';
-    html += '</div>';
 
     if (ios.digitalInputs && ios.digitalInputs.length) {
       html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';

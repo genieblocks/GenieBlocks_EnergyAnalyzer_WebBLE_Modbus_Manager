@@ -72,11 +72,6 @@
   function renderDeviceDashboard(container, device, deviceId) {
     var html = '';
 
-    html += '<div class="demo-banner flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm text-amber-700">';
-    html += '<span class="text-lg">&#9888;</span>';
-    html += '<span><strong>DEMO MOD</strong> — Bu veriler simülasyondur. Gerçek veri için BLE ile cihaza bağlanın.</span>';
-    html += '</div>';
-
     html += '<div class="flex items-center justify-between mb-3">';
     html += '<div class="text-sm text-gray-500">' + device.name + ' <span class="text-gray-400">|</span> ' + device.phases + ' Faz <span class="text-gray-400">|</span> Fn: 0x' + device.modbusFunction.toString(16).padStart(2, '0').toUpperCase() + '</div>';
     html += '<button id="demo-toggle" class="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors">Duraklat</button>';
@@ -139,11 +134,6 @@
 
   function renderManualDashboard(container) {
     var html = '';
-    html += '<div class="demo-banner flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-sm text-amber-700">';
-    html += '<span class="text-lg">&#9888;</span>';
-    html += '<span><strong>DEMO MOD</strong> — Tanımsız cihaz. BLE bağlantısı ile gerçek Modbus sorguları gönderilebilir.</span>';
-    html += '</div>';
-
     html += '<div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">';
     html += '<h3 class="text-sm font-semibold text-gray-700 mb-3">Manuel Modbus Okuyucu</h3>';
     html += '<div class="flex flex-col gap-2.5">';
