@@ -98,8 +98,9 @@
 
     var useLive = window.LiveModbus && window.LiveModbus.shouldUseLive();
     var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
-    var modeLabel = useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı');
-    var modeClass = useLive ? 'bg-green-100 text-green-700' : (useDemo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500');
+    var badge = (window.LiveModbus && window.LiveModbus.getModeBadge)
+      ? window.LiveModbus.getModeBadge()
+      : { label: useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı'), className: useLive ? 'bg-green-100 text-green-700' : (useDemo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500') };
     var html = '';
 
     html += '<div class="flex items-center gap-2 mb-3 flex-wrap">';
@@ -120,7 +121,7 @@
     html += '</select>';
     html += '<select id="harm-phase" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"></select>';
     html += '<button id="harm-refresh" class="px-3 py-1.5 rounded-full bg-brand text-white font-medium text-sm border-none cursor-pointer hover:bg-brand-dark transition-colors">Yenile</button>';
-    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + modeClass + '">' + modeLabel + '</span>';
+    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
     html += '</div>';
 
     html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">';
@@ -333,10 +334,16 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     initHarmonics();
-    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
-      window.LiveModbus.addDemoModeListener(function() {
+    function refreshIfActive() {
+      if (typeof window.getCurrentPageId === 'function' && window.getCurrentPageId() === 'harmonics') {
         if (typeof window.refreshHarmonics === 'function') window.refreshHarmonics();
-      });
+      }
+    }
+    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
+      window.LiveModbus.addDemoModeListener(refreshIfActive);
+    }
+    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
+      window.LiveModbus.addConnectionListener(refreshIfActive);
     }
   });
 })();

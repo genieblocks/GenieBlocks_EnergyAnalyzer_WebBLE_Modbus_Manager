@@ -51,6 +51,21 @@
     return 0;
   }
 
+  function modeFlags() {
+    return {
+      useLive: !!(window.LiveModbus && window.LiveModbus.shouldUseLive()),
+      useDemo: !!(window.LiveModbus && window.LiveModbus.shouldUseDemo()),
+      canWrite: !!(window.LiveModbus && window.LiveModbus.canWriteDevice())
+    };
+  }
+
+  function modeBadge() {
+    if (window.LiveModbus && window.LiveModbus.getModeBadge) {
+      return window.LiveModbus.getModeBadge();
+    }
+    return { label: '—', className: 'bg-gray-100 text-gray-500' };
+  }
+
   function stopIoLive() {
     livePolling = false;
     if (window.LiveModbus) window.LiveModbus.stopLivePoll('io-monitor');
@@ -78,7 +93,7 @@
 
   function applyIoValues(ios, values) {
     if (ios.digitalInputs) {
-      ios.digitalInputs.forEach(function(di, idx) {
+      ios.digitalInputs.forEach(function(di) {
         var el = document.getElementById('io-di-' + di.reg);
         if (!el || values[di.reg] === undefined) return;
         var on = Number(values[di.reg]) === 1;
@@ -88,12 +103,12 @@
     }
     if (ios.relays) {
       ios.relays.forEach(function(r) {
-        updateToggleBtn(r.reg, values[r.reg]);
+        updateToggleBtn(r.reg, values[r.reg], true);
       });
     }
     if (ios.digitalOutputs) {
       ios.digitalOutputs.forEach(function(do_) {
-        updateToggleBtn(do_.reg, values[do_.reg]);
+        updateToggleBtn(do_.reg, values[do_.reg], true);
       });
     }
     if (ios.analogInputs) {
@@ -112,19 +127,25 @@
         var raw = Math.round(values[ao.reg] / (ao.scale || 1));
         ioDemoState['reg_' + ao.reg] = raw;
         var slider = document.querySelector('.io-dac-slider[data-reg="' + ao.reg + '"]');
-        if (slider) slider.value = raw;
+        if (slider) {
+          slider.value = raw;
+          slider.disabled = false;
+        }
         updateDacLabel(ao, raw);
       });
     }
   }
 
-  function updateToggleBtn(reg, value) {
+  function updateToggleBtn(reg, value, enabled) {
     if (value === undefined) return;
     var state = Number(value) === 1 ? 1 : 0;
     ioDemoState['reg_' + reg] = state;
     var btn = document.querySelector('.io-toggle[data-reg="' + reg + '"]');
     if (!btn) return;
     btn.textContent = state === 1 ? 'ON' : 'OFF';
+    btn.disabled = enabled === false;
+    btn.classList.toggle('opacity-50', enabled === false);
+    btn.classList.toggle('cursor-not-allowed', enabled === false);
     btn.classList.toggle('bg-brand', state === 1);
     btn.classList.toggle('text-white', state === 1);
     btn.classList.toggle('border-brand', state === 1);
@@ -170,25 +191,32 @@
 
     var device = info.device;
     var ios = device.ios;
-    var useLive = window.LiveModbus && window.LiveModbus.shouldUseLive();
-    var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
-    var modeLabel = useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı');
-    var modeClass = useLive ? 'bg-green-100 text-green-700' : (useDemo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500');
+    var flags = modeFlags();
+    var badge = modeBadge();
+    var interactive = flags.useLive || flags.useDemo;
     var html = '';
 
     html += '<div class="flex justify-end mb-2"><span class="text-xs px-2 py-0.5 rounded-full ' +
-      modeClass + '">' + modeLabel + '</span></div>';
+      badge.className + '">' + badge.label + '</span></div>';
 
     if (ios.digitalInputs && ios.digitalInputs.length) {
       html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
       html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Dijital Girişler</div>';
       html += '<div class="flex flex-wrap gap-3">';
       ios.digitalInputs.forEach(function(di) {
-        var val = getDemoValue(di, true);
-        var on = val === 1 || val === '1';
+        var on = false;
+        var title = '—';
+        if (flags.useDemo) {
+          var val = getDemoValue(di, true);
+          on = val === 1 || val === '1';
+          title = on ? 'ON' : 'OFF';
+        } else if (flags.useLive) {
+          title = 'Bekleniyor…';
+        }
         html += '<div class="flex items-center gap-2">';
         html += '<span class="text-sm text-gray-600">' + di.name + '</span>';
-        html += '<span id="io-di-' + di.reg + '" class="inline-block w-4 h-4 rounded-full border border-gray-300 ' + (on ? 'bg-green-500' : 'bg-gray-300') + '" title="' + (on ? 'ON' : 'OFF') + '"></span>';
+        html += '<span id="io-di-' + di.reg + '" class="inline-block w-4 h-4 rounded-full border border-gray-300 ' +
+          (on ? 'bg-green-500' : 'bg-gray-300') + '" title="' + title + '"></span>';
         html += '</div>';
       });
       html += '</div></div>';
@@ -200,12 +228,16 @@
       html += '<div class="flex flex-wrap gap-4">';
       ios.relays.forEach(function(r) {
         var key = 'reg_' + r.reg;
-        var state = ioDemoState[key] !== undefined ? ioDemoState[key] : 0;
+        var state = 0;
+        if (flags.useDemo && ioDemoState[key] !== undefined) state = ioDemoState[key];
+        else if (flags.useDemo) { ioDemoState[key] = 0; state = 0; }
         html += '<div class="flex items-center gap-2">';
         html += '<span class="text-sm text-gray-600">' + r.name + '</span>';
         html += '<button type="button" class="io-toggle px-3 py-1 rounded-full text-xs font-medium border ' +
           (state === 1 ? 'bg-brand text-white border-brand' : 'bg-gray-100 text-gray-600 border-gray-300') +
-          '" data-reg="' + r.reg + '" data-name="' + r.name + '">' + (state === 1 ? 'ON' : 'OFF') + '</button>';
+          (interactive ? '' : ' opacity-50 cursor-not-allowed') +
+          '" data-reg="' + r.reg + '" data-name="' + r.name + '"' +
+          (interactive ? '' : ' disabled') + '>' + (state === 1 ? 'ON' : 'OFF') + '</button>';
         html += '</div>';
       });
       html += '</div></div>';
@@ -217,12 +249,16 @@
       html += '<div class="flex flex-wrap gap-4">';
       ios.digitalOutputs.forEach(function(do_) {
         var key = 'reg_' + do_.reg;
-        var state = ioDemoState[key] !== undefined ? ioDemoState[key] : 0;
+        var state = 0;
+        if (flags.useDemo && ioDemoState[key] !== undefined) state = ioDemoState[key];
+        else if (flags.useDemo) { ioDemoState[key] = 0; state = 0; }
         html += '<div class="flex items-center gap-2">';
         html += '<span class="text-sm text-gray-600">' + do_.name + '</span>';
         html += '<button type="button" class="io-toggle px-3 py-1 rounded-full text-xs font-medium border ' +
           (state === 1 ? 'bg-brand text-white border-brand' : 'bg-gray-100 text-gray-600 border-gray-300') +
-          '" data-reg="' + do_.reg + '" data-name="' + do_.name + '">' + (state === 1 ? 'ON' : 'OFF') + '</button>';
+          (interactive ? '' : ' opacity-50 cursor-not-allowed') +
+          '" data-reg="' + do_.reg + '" data-name="' + do_.name + '"' +
+          (interactive ? '' : ' disabled') + '>' + (state === 1 ? 'ON' : 'OFF') + '</button>';
         html += '</div>';
       });
       html += '</div></div>';
@@ -233,11 +269,12 @@
       html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Analog Girişler</div>';
       html += '<div class="grid gap-3">';
       ios.analogInputs.forEach(function(ai, idx) {
-        var demoVal = (Math.random() * 2.5 + 0.5).toFixed(2);
         var unit = ai.unit || '';
+        var display = '—';
+        if (flags.useDemo) display = (Math.random() * 2.5 + 0.5).toFixed(2) + ' ' + unit;
         html += '<div class="flex items-center justify-between border-b border-gray-100 pb-2 last:border-0">';
         html += '<span class="text-sm text-gray-600">' + ai.name + '</span>';
-        html += '<span class="text-lg font-mono font-semibold text-gray-800" id="io-ai-val-' + idx + '">' + demoVal + ' ' + unit + '</span>';
+        html += '<span class="text-lg font-mono font-semibold text-gray-800" id="io-ai-val-' + idx + '">' + display + '</span>';
         html += '</div>';
         html += '<div id="io-ai-gauge-' + idx + '" style="width:100%;height:60px;"></div>';
       });
@@ -249,7 +286,11 @@
       html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Analog Çıkış (DAC)</div>';
       ios.analogOutputs.forEach(function(ao) {
         var key = 'reg_' + ao.reg;
-        var raw = ioDemoState[key] !== undefined ? ioDemoState[key] : 0;
+        var raw = 0;
+        if (flags.useDemo) {
+          raw = ioDemoState[key] !== undefined ? ioDemoState[key] : 0;
+          ioDemoState[key] = raw;
+        }
         var min = ao.min !== undefined ? ao.min : 0;
         var max = ao.max !== undefined ? ao.max : 255;
         var volt = 0;
@@ -260,43 +301,52 @@
         }
         html += '<div class="flex items-center gap-3">';
         html += '<span class="text-sm text-gray-600 shrink-0">' + ao.name + '</span>';
-        html += '<input type="range" min="' + min + '" max="' + max + '" value="' + raw + '" class="io-dac-slider flex-1 h-2 rounded-full appearance-none bg-gray-200" data-reg="' + ao.reg + '" data-formula="' + (ao.formula || '').replace(/"/g, '&quot;') + '" data-unit="' + (ao.unit || 'V') + '">';
-        html += '<span class="io-dac-value text-sm font-mono font-semibold w-16 text-right" data-reg="' + ao.reg + '">' + Number(volt).toFixed(2) + ' ' + (ao.unit || 'V') + '</span>';
+        html += '<input type="range" min="' + min + '" max="' + max + '" value="' + raw + '" class="io-dac-slider flex-1 h-2 rounded-full appearance-none bg-gray-200" data-reg="' + ao.reg + '" data-formula="' + (ao.formula || '').replace(/"/g, '&quot;') + '" data-unit="' + (ao.unit || 'V') + '"' +
+          (interactive ? '' : ' disabled') + '>';
+        html += '<span class="io-dac-value text-sm font-mono font-semibold w-16 text-right" data-reg="' + ao.reg + '">' +
+          (flags.useDemo || flags.useLive ? (Number(volt).toFixed(2) + ' ' + (ao.unit || 'V')) : '—') + '</span>';
         html += '</div>';
       });
       html += '</div></div>';
+    }
+
+    if (!interactive) {
+      html += '<p class="text-xs text-gray-400 text-center mt-2">Demo kapalı — BLE bağlanın veya Ayarlar’dan Demo Modu’nu açın.</p>';
     }
 
     container.innerHTML = html;
 
     container.querySelectorAll('.io-toggle').forEach(function(btn) {
       btn.addEventListener('click', async function() {
+        if (this.disabled) return;
         var reg = parseInt(this.dataset.reg, 10);
         var key = 'reg_' + reg;
         var next = ioDemoState[key] === 1 ? 0 : 1;
-        if (window.LiveModbus && window.LiveModbus.isBleConnected()) {
+        var canWrite = window.LiveModbus && window.LiveModbus.canWriteDevice();
+        if (canWrite) {
           try {
             await window.LiveModbus.writeRegisters(device, reg, [next]);
             ioDemoState[key] = next;
-            updateToggleBtn(reg, next);
+            updateToggleBtn(reg, next, true);
           } catch (e) {
             if (window.logMsg) window.logMsg('I/O yazma hatası: ' + (e.message || e));
           }
-        } else {
+        } else if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
           ioDemoState[key] = next;
-          updateToggleBtn(reg, next);
+          updateToggleBtn(reg, next, true);
         }
       });
     });
 
     container.querySelectorAll('.io-dac-slider').forEach(function(slider) {
       slider.addEventListener('change', async function() {
+        if (this.disabled) return;
         var reg = parseInt(this.dataset.reg, 10);
         var raw = parseInt(this.value, 10);
         ioDemoState['reg_' + reg] = raw;
         var ao = (ios.analogOutputs || []).find(function(a) { return a.reg === reg; });
         if (ao) updateDacLabel(ao, raw);
-        if (window.LiveModbus && window.LiveModbus.isBleConnected()) {
+        if (window.LiveModbus && window.LiveModbus.canWriteDevice()) {
           try {
             await window.LiveModbus.writeRegisters(device, reg, [raw & 0xffff]);
           } catch (e) {
@@ -305,6 +355,7 @@
         }
       });
       slider.addEventListener('input', function() {
+        if (this.disabled) return;
         var reg = parseInt(this.dataset.reg, 10);
         var raw = parseInt(this.value, 10);
         var ao = (ios.analogOutputs || []).find(function(a) { return a.reg === reg; });
@@ -319,7 +370,7 @@
         if (aiCharts['ai' + idx]) aiCharts['ai' + idx].dispose();
         var ch = echarts.init(dom);
         aiCharts['ai' + idx] = ch;
-        var v = (Math.random() * 2.5 + 0.5);
+        var v = flags.useDemo ? (Math.random() * 2.5 + 0.5) : 0;
         ch.setOption({
           series: [{
             type: 'gauge',
@@ -341,11 +392,13 @@
           }]
         });
         var valEl = document.getElementById('io-ai-val-' + idx);
-        if (valEl) valEl.textContent = v.toFixed(2) + ' ' + (ai.unit || '');
+        if (valEl && flags.useDemo) {
+          valEl.textContent = v.toFixed(2) + ' ' + (ai.unit || '');
+        }
       });
     }
 
-    if (useLive) startIoLive(device, ios);
+    if (flags.useLive) startIoLive(device, ios);
   }
 
   window.initIoMonitor = initIoMonitor;
@@ -360,6 +413,13 @@
     if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
       window.LiveModbus.addDemoModeListener(function() {
         if (typeof window.refreshIoMonitor === 'function') window.refreshIoMonitor();
+      });
+    }
+    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
+      window.LiveModbus.addConnectionListener(function() {
+        if (typeof window.getCurrentPageId === 'function' && window.getCurrentPageId() === 'io-monitor') {
+          if (typeof window.refreshIoMonitor === 'function') window.refreshIoMonitor();
+        }
       });
     }
   });

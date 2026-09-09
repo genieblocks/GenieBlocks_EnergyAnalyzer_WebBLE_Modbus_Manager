@@ -70,6 +70,22 @@
     if (typeof fn === 'function') demoModeListeners.push(fn);
   }
 
+  /** Sayfa badge’leri için ortak etiket. */
+  function getModeBadge() {
+    if (shouldUseLive()) {
+      return { label: 'Canlı', className: 'bg-green-100 text-green-700' };
+    }
+    if (shouldUseDemo()) {
+      return { label: 'Demo', className: 'bg-amber-100 text-amber-700' };
+    }
+    return { label: 'Kapalı', className: 'bg-gray-100 text-gray-500' };
+  }
+
+  /** Cihaza yazma: sadece canlı modda (demo zorla = yerel). */
+  function canWriteDevice() {
+    return shouldUseLive();
+  }
+
   function getSlaveAndFunc(deviceDef) {
     var slave = deviceDef && deviceDef.defaultSlaveAddr != null ? deviceDef.defaultSlaveAddr : 1;
     var mbAddr = document.getElementById('mb_addr');
@@ -280,6 +296,8 @@
     setDemoMode: setDemoMode,
     shouldUseLive: shouldUseLive,
     shouldUseDemo: shouldUseDemo,
+    getModeBadge: getModeBadge,
+    canWriteDevice: canWriteDevice,
     updateHeaderModeBadge: updateHeaderModeBadge,
     addDemoModeListener: addDemoModeListener,
     getSlaveAndFunc: getSlaveAndFunc,

@@ -29,11 +29,14 @@
 
     var device = info.device;
     var html = '';
-    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
+    var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
+    var badge = (window.LiveModbus && window.LiveModbus.getModeBadge)
+      ? window.LiveModbus.getModeBadge()
+      : { label: '—', className: 'bg-gray-100 text-gray-500' };
 
     html += '<div class="flex items-center justify-between mb-3">';
     html += '<div class="text-sm text-gray-500">' + device.name + ' — Cihaz Konfigürasyonu</div>';
-    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + (ble ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700') + '">' + (ble ? 'Canlı' : 'Demo / Bağlı değil') + '</span>';
+    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
     html += '</div>';
 
     device.settings.forEach(function(group, gi) {
@@ -48,14 +51,17 @@
         if (param.options) {
           html += '<select id="' + inputId + '" class="px-2 py-1 border border-gray-300 rounded text-sm bg-white min-w-[120px] text-right">';
           var keys = Object.keys(param.options);
-          keys.forEach(function(key) {
-            var demoSelected = (keys.indexOf(key) === 0) ? ' selected' : '';
-            html += '<option value="' + key + '"' + demoSelected + '>' + param.options[key] + '</option>';
+          keys.forEach(function(key, ki) {
+            var selected = (useDemo && ki === 0) ? ' selected' : '';
+            html += '<option value="' + key + '"' + selected + '>' + param.options[key] + '</option>';
           });
+          if (!useDemo) {
+            html += '<option value="" selected disabled>— Oku —</option>';
+          }
           html += '</select>';
         } else {
-          var demoVal = param.min || 0;
-          html += '<input type="number" id="' + inputId + '" value="' + demoVal + '"';
+          var demoVal = useDemo ? (param.min || 0) : '';
+          html += '<input type="number" id="' + inputId + '" value="' + demoVal + '" placeholder="—"';
           if (param.min !== undefined) html += ' min="' + param.min + '"';
           if (param.max !== undefined) html += ' max="' + param.max + '"';
           if (param.scale && param.scale < 1) html += ' step="' + param.scale + '"';
@@ -225,5 +231,17 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     initDeviceSettings();
+    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
+      window.LiveModbus.addDemoModeListener(function() {
+        if (typeof window.refreshDeviceSettings === 'function') window.refreshDeviceSettings();
+      });
+    }
+    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
+      window.LiveModbus.addConnectionListener(function() {
+        if (typeof window.getCurrentPageId === 'function' && window.getCurrentPageId() === 'device-settings') {
+          if (typeof window.refreshDeviceSettings === 'function') window.refreshDeviceSettings();
+        }
+      });
+    }
   });
 })();

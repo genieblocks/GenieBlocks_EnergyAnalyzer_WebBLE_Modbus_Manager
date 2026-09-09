@@ -108,8 +108,21 @@
       startLive(currentDeviceId);
     } else if (useDemo) {
       startDemo(currentDeviceId);
+    } else {
+      clearParamValues(currentDeviceId);
     }
     updateLiveBadge();
+  }
+
+  function clearParamValues(deviceId) {
+    var device = getDeviceById(deviceId);
+    if (!device) return;
+    device.groups.forEach(function(group) {
+      group.params.forEach(function(param) {
+        var el = document.getElementById('p_' + param.reg);
+        if (el) el.textContent = '—';
+      });
+    });
   }
 
   function stopAllData() {

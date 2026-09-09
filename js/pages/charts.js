@@ -27,6 +27,10 @@
       html += '" data-ms="' + TIME_WINDOWS[label] + '">' + label + '</button>';
     });
     html += '<div class="flex-1"></div>';
+    var badge = (window.LiveModbus && window.LiveModbus.getModeBadge)
+      ? window.LiveModbus.getModeBadge()
+      : { label: '—', className: 'bg-gray-100 text-gray-500' };
+    html += '<span id="charts-mode-badge" class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
     html += '<button id="add-chart-btn" class="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors">+ Veri Ekle</button>';
     html += '<button id="clear-all-charts" class="text-xs px-3 py-1 rounded-full bg-red-50 text-red-600 border-none cursor-pointer hover:bg-red-100 transition-colors">Temizle</button>';
     html += '</div>';
@@ -416,6 +420,12 @@
         clearInterval(demoTimers[k]);
         delete demoTimers[k];
       });
+      var badgeEl = document.getElementById('charts-mode-badge');
+      if (badgeEl && window.LiveModbus && window.LiveModbus.getModeBadge) {
+        var b = window.LiveModbus.getModeBadge();
+        badgeEl.textContent = b.label;
+        badgeEl.className = 'text-xs px-2 py-0.5 rounded-full ' + b.className;
+      }
       if (window.LiveModbus && window.LiveModbus.shouldUseLive()) {
         startChartsLive();
       } else if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
