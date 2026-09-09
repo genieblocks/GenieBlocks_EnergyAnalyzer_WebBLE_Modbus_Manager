@@ -321,19 +321,25 @@
         if (this.disabled) return;
         var reg = parseInt(this.dataset.reg, 10);
         var key = 'reg_' + reg;
-        var next = ioDemoState[key] === 1 ? 0 : 1;
+        var prev = ioDemoState[key] === 1 ? 1 : 0;
+        var next = prev === 1 ? 0 : 1;
         var canWrite = window.LiveModbus && window.LiveModbus.canWriteDevice();
+        updateToggleBtn(reg, next, true);
         if (canWrite) {
+          this.disabled = true;
           try {
             await window.LiveModbus.writeRegisters(device, reg, [next]);
             ioDemoState[key] = next;
-            updateToggleBtn(reg, next, true);
           } catch (e) {
+            updateToggleBtn(reg, prev, true);
             if (window.logMsg) window.logMsg('I/O yazma hatası: ' + (e.message || e));
+          } finally {
+            this.disabled = false;
           }
         } else if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
           ioDemoState[key] = next;
-          updateToggleBtn(reg, next, true);
+        } else {
+          updateToggleBtn(reg, prev, true);
         }
       });
     });

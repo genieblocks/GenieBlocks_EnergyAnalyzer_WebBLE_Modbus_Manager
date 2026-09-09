@@ -997,6 +997,8 @@ let manualModbusTransId = 0;
 
 /**
  * Manuel Modbus istek paketi oluşturur. Tüm sayısal alanlar big-endian.
+ * Format: [transId, slaveId, func, startAddr_be16, qty_be16, ...payload]
+ * 0x06: qty=1 + value_be16 (toplam 9 byte). 0x10: qty + values.
  * @param {number} slaveId 1–247
  * @param {number} func 3, 4, 6 veya 16
  * @param {number} startAddr 0–65535
@@ -1011,6 +1013,7 @@ function buildModbusQueryPacket(slaveId, func, startAddr, qty, values) {
   if (f === 0x06) length = 9;
   else if (f === 0x10) length = 7 + (qty * 2);
   if (length > 150) return null;
+  if ((f === 0x03 || f === 0x04 || f === 0x10) && (qty < 1 || qty > 64)) return null;
   const buf = new ArrayBuffer(length);
   const view = new DataView(buf);
   const tId = (manualModbusTransId++) & 0xff;
@@ -1018,12 +1021,21 @@ function buildModbusQueryPacket(slaveId, func, startAddr, qty, values) {
   view.setUint8(1, slaveId);
   view.setUint8(2, f);
   view.setUint16(3, startAddr, false);
-  view.setUint16(5, qty, false);
-  if (f === 0x06 && values && values.length >= 1) {
-    view.setUint16(7, values[0] & 0xffff, false);
-  } else if (f === 0x10 && values && values.length >= qty) {
-    for (let i = 0; i < qty; i++) {
-      view.setUint16(7 + i * 2, values[i] & 0xffff, false);
+  if (f === 0x06) {
+    view.setUint16(5, 1, false);
+    if (values && values.length >= 1) {
+      view.setUint16(7, values[0] & 0xffff, false);
+    } else {
+      return null;
+    }
+  } else {
+    view.setUint16(5, qty, false);
+    if (f === 0x10 && values && values.length >= qty) {
+      for (let i = 0; i < qty; i++) {
+        view.setUint16(7 + i * 2, values[i] & 0xffff, false);
+      }
+    } else if (f === 0x10) {
+      return null;
     }
   }
   return new Uint8Array(buf);
@@ -1051,22 +1063,56 @@ function parseModbusResponse(view) {
 }
 
 function statusCodeToText(code) {
-  const map = { 0: 'Başarı', 0x01: 'Illegal function', 0x03: 'Illegal data value', 0xE4: 'Invalid slave' };
+  const map = {
+    0: 'Başarı',
+    0x01: 'Illegal function (desteklenmeyen FC)',
+    0x02: 'Illegal data address',
+    0x03: 'Illegal data value',
+    0xE2: 'Timeout / cevap yok (RS-485)',
+    0xE4: 'Invalid slave'
+  };
   return map[code] != null ? map[code] : 'Hata kodu: 0x' + (code & 0xff).toString(16).toUpperCase();
 }
 
+function estimateModbusWaitMs(packet) {
+  let ms = 400;
+  if (packet && packet.length >= 7) {
+    const func = packet[2];
+    const qty = (packet[5] << 8) | packet[6];
+    if (func === 0x03 || func === 0x04) {
+      ms = 350 + Math.min(qty, 64) * 12;
+    } else if (func === 0x06 || func === 0x10) {
+      ms = 450;
+    }
+  }
+  const timeoutEl = document.getElementById('mb_timeout');
+  if (timeoutEl && timeoutEl.value !== '') {
+    const t = parseInt(timeoutEl.value, 10);
+    if (!Number.isNaN(t) && t > 0) ms = Math.max(ms, t);
+  }
+  return Math.min(Math.max(ms, 250), 2500);
+}
+
+/** BLE Query/Response tek kanallı — istekleri sıraya al. */
+let modbusRequestChain = Promise.resolve();
+
 /**
- * Query karakteristiğine yazar, kısa bekleyip Response karakteristiğinden okur.
+ * Query karakteristiğine yazar, bekleyip Response karakteristiğinden okur.
  */
 async function sendModbusRequest(packet) {
-  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
-  const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
-  const queryChar = await service.getCharacteristic(MODBUS_QUERY_CHAR_UUID);
-  const responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
-  await queryChar.writeValue(packet);
-  await sleep(180);
-  const value = await responseChar.readValue();
-  return parseModbusResponse(value);
+  const run = async () => {
+    const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+    const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
+    const queryChar = await service.getCharacteristic(MODBUS_QUERY_CHAR_UUID);
+    const responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+    await queryChar.writeValue(packet);
+    await sleep(estimateModbusWaitMs(packet));
+    const value = await responseChar.readValue();
+    return parseModbusResponse(value);
+  };
+  const resultPromise = modbusRequestChain.then(run, run);
+  modbusRequestChain = resultPromise.then(function() {}, function() {});
+  return resultPromise;
 }
 
 // Live Modbus / sayfa poller API

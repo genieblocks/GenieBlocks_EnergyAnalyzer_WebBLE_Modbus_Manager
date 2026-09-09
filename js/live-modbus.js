@@ -1,7 +1,7 @@
 'use strict';
 
 (function() {
-  var MAX_QTY = 64;
+  var MAX_QTY = 32;
   var DEMO_MODE_KEY = 'gb_demo_mode';
   var pollTimer = null;
   var pollBusy = false;
@@ -200,17 +200,31 @@
   }
 
   /**
-   * Tek veya çoklu register yazma. qty===1 ise 0x06, değilse 0x10.
+   * Register yazma. Tekil yazmada önce 0x10, başarısızsa 0x06 dener
+   * (bazı gateway/analizör kombinasyonları yalnızca birini kabul eder).
    */
   async function writeRegisters(deviceDef, startAddr, values) {
     if (!isBleConnected()) throw new Error('Bluetooth bağlantısı yok');
     var cfg = getSlaveAndFunc(deviceDef);
     var valuesArr = Array.isArray(values) ? values : [values];
     var qty = valuesArr.length;
-    var func = qty === 1 ? 0x06 : 0x10;
-    var packet = window.buildModbusQueryPacket(cfg.slave, func, startAddr, qty, valuesArr);
-    if (!packet) throw new Error('Yazma paketi oluşturulamadı');
-    var res = await window.sendModbusRequest(packet);
+    if (qty < 1 || qty > 64) throw new Error('Geçersiz yazma adedi');
+
+    async function tryWrite(func) {
+      var packet = window.buildModbusQueryPacket(cfg.slave, func, startAddr, qty, valuesArr);
+      if (!packet) throw new Error('Yazma paketi oluşturulamadı');
+      return window.sendModbusRequest(packet);
+    }
+
+    var res;
+    if (qty === 1) {
+      res = await tryWrite(0x10);
+      if (res.status === 0x01) {
+        res = await tryWrite(0x06);
+      }
+    } else {
+      res = await tryWrite(0x10);
+    }
     if (res.status !== 0) {
       var msg = typeof window.statusCodeToText === 'function' ? window.statusCodeToText(res.status) : ('status ' + res.status);
       throw new Error(msg);
