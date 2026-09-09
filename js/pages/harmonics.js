@@ -2,7 +2,7 @@
 
 (function() {
   var harmonicChart = null;
-  var currentCategory = 'current';
+  var currentCategory = 'voltage';
   var currentPhaseIdx = 0;
   var harmLiveActive = false;
 
@@ -111,7 +111,13 @@
       voltageLL: 'Gerilim (Faz-Faz) Harmonikleri'
     };
     var harmKeys = Object.keys(device.harmonics);
-    if (harmKeys.indexOf(currentCategory) === -1) currentCategory = harmKeys[0];
+    if (harmKeys.indexOf(currentCategory) === -1) {
+      var voltageKey = null;
+      for (var i = 0; i < harmKeys.length; i++) {
+        if (harmKeys[i].indexOf('voltage') === 0) { voltageKey = harmKeys[i]; break; }
+      }
+      currentCategory = voltageKey || harmKeys[0];
+    }
 
     html += '<select id="harm-category" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white">';
     harmKeys.forEach(function(key) {
@@ -120,7 +126,6 @@
     });
     html += '</select>';
     html += '<select id="harm-phase" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"></select>';
-    html += '<button id="harm-refresh" class="px-3 py-1.5 rounded-full bg-brand text-white font-medium text-sm border-none cursor-pointer hover:bg-brand-dark transition-colors">Yenile</button>';
     html += '<span class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
     html += '</div>';
 
@@ -144,10 +149,6 @@
 
     phaseSelect.addEventListener('change', function() {
       currentPhaseIdx = parseInt(this.value, 10);
-      restartHarmData();
-    });
-
-    document.getElementById('harm-refresh').addEventListener('click', function() {
       restartHarmData();
     });
 
