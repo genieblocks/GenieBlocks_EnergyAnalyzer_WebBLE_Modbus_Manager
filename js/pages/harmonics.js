@@ -35,7 +35,7 @@
   }
 
   function startHarmLive(device) {
-    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) return;
+    if (!window.LiveModbus || !window.LiveModbus.shouldUseLive()) return;
     harmLiveActive = true;
     window.LiveModbus.startLivePoll({
       owner: 'harmonics',
@@ -77,7 +77,8 @@
       },
       onDisconnected: function() {
         harmLiveActive = false;
-        renderChart();
+        if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) renderChart();
+        else renderChartEmpty();
       }
     });
   }
@@ -95,7 +96,10 @@
       return;
     }
 
-    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
+    var useLive = window.LiveModbus && window.LiveModbus.shouldUseLive();
+    var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
+    var modeLabel = useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı');
+    var modeClass = useLive ? 'bg-green-100 text-green-700' : (useDemo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500');
     var html = '';
 
     html += '<div class="flex items-center gap-2 mb-3 flex-wrap">';
@@ -116,7 +120,7 @@
     html += '</select>';
     html += '<select id="harm-phase" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"></select>';
     html += '<button id="harm-refresh" class="px-3 py-1.5 rounded-full bg-brand text-white font-medium text-sm border-none cursor-pointer hover:bg-brand-dark transition-colors">Yenile</button>';
-    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + (ble ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700') + '">' + (ble ? 'Canlı' : 'Demo') + '</span>';
+    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + modeClass + '">' + modeLabel + '</span>';
     html += '</div>';
 
     html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">';
@@ -155,11 +159,27 @@
     stopHarmLive();
     var device = getDevice();
     if (!device) return;
-    if (window.LiveModbus && window.LiveModbus.isBleConnected()) {
+    if (window.LiveModbus && window.LiveModbus.shouldUseLive()) {
       startHarmLive(device);
-    } else {
+    } else if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
       renderChart();
+    } else {
+      renderChartEmpty();
     }
+  }
+
+  function renderChartEmpty() {
+    if (!harmonicChart) return;
+    harmonicChart.setOption({
+      series: [{ type: 'bar', data: [] }],
+      xAxis: { data: [] },
+      graphic: {
+        type: 'text',
+        left: 'center',
+        top: 'middle',
+        style: { text: 'Demo kapalı — BLE bağlanın', fill: '#9ca3af', fontSize: 13 }
+      }
+    }, true);
   }
 
   function updatePhaseOptions() {
@@ -222,7 +242,7 @@
     paintChart(harm, orders, data, false);
   }
 
-  function paintChart(harm, orders, data, isLive) {
+  function paintChart(harm, orders, data, modeTag) {
     if (!harmonicChart) return;
     var phaseName = harm.phases[currentPhaseIdx] || 'L1';
     var categories = orders.map(function(o) { return o + '.'; });
@@ -232,10 +252,12 @@
       voltagePN: 'Gerilim (F-N)', voltageLL: 'Gerilim (F-F)'
     };
     var catLabel = catLabelsShort[currentCategory] || currentCategory;
+    var suffix = modeTag === true ? ' (Canlı)' : (modeTag === false ? ' (Demo)' : (modeTag ? ' (' + modeTag + ')' : ''));
 
     harmonicChart.setOption({
+      graphic: [],
       title: {
-        text: phaseName + ' ' + catLabel + ' Harmonik Spektrumu' + (isLive ? ' (Canlı)' : ' (Demo)'),
+        text: phaseName + ' ' + catLabel + ' Harmonik Spektrumu' + suffix,
         left: 'center',
         textStyle: { fontSize: 13, fontWeight: 600, color: '#374151' }
       },
@@ -311,5 +333,10 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     initHarmonics();
+    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
+      window.LiveModbus.addDemoModeListener(function() {
+        if (typeof window.refreshHarmonics === 'function') window.refreshHarmonics();
+      });
+    }
   });
 })();

@@ -2,14 +2,72 @@
 
 (function() {
   var MAX_QTY = 64;
+  var DEMO_MODE_KEY = 'gb_demo_mode';
   var pollTimer = null;
   var pollBusy = false;
   var pollToken = 0;
   var activeOwner = null;
+  var demoModeListeners = [];
+  var connectionListeners = [];
 
   function isBleConnected() {
     if (typeof window.isBleConnected === 'function') return window.isBleConnected();
     return false;
+  }
+
+  /** @returns {'auto'|'force'|'off'} */
+  function getDemoMode() {
+    var m = localStorage.getItem(DEMO_MODE_KEY);
+    if (m === 'force' || m === 'off') return m;
+    return 'auto';
+  }
+
+  function setDemoMode(mode) {
+    if (mode !== 'auto' && mode !== 'force' && mode !== 'off') mode = 'auto';
+    localStorage.setItem(DEMO_MODE_KEY, mode);
+    updateHeaderModeBadge();
+    demoModeListeners.forEach(function(fn) {
+      try { fn(mode); } catch (e) { /* ignore */ }
+    });
+  }
+
+  /** BLE bağlı ve demo zorlanmıyorsa canlı okuma. */
+  function shouldUseLive() {
+    if (!isBleConnected()) return false;
+    return getDemoMode() !== 'force';
+  }
+
+  /** Simülasyon verisi kullanılacak mı. */
+  function shouldUseDemo() {
+    var mode = getDemoMode();
+    if (mode === 'force') return true;
+    if (mode === 'off') return false;
+    return !isBleConnected();
+  }
+
+  function updateHeaderModeBadge() {
+    var badge = document.getElementById('header-demo-badge');
+    if (!badge) return;
+    if (shouldUseLive()) {
+      badge.textContent = 'CANLI';
+      badge.className = 'live-badge shrink-0';
+      badge.title = 'Veriler BLE üzerinden canlı okunuyor.';
+      badge.classList.remove('hidden');
+    } else if (shouldUseDemo()) {
+      badge.textContent = 'DEMO';
+      badge.className = 'demo-badge shrink-0';
+      badge.title = 'Veriler simülasyondur. Gerçek veri için BLE bağlanın veya Ayarlar’dan Demo’yu kapatın.';
+      badge.classList.remove('hidden');
+    } else {
+      badge.textContent = '';
+      badge.className = 'hidden shrink-0';
+      badge.title = '';
+      badge.classList.add('hidden');
+    }
+  }
+
+  function addDemoModeListener(fn) {
+    if (typeof fn === 'function') demoModeListeners.push(fn);
   }
 
   function getSlaveAndFunc(deviceDef) {
@@ -212,8 +270,18 @@
     tick();
   }
 
+  function addConnectionListener(fn) {
+    if (typeof fn === 'function') connectionListeners.push(fn);
+  }
+
   window.LiveModbus = {
     isBleConnected: isBleConnected,
+    getDemoMode: getDemoMode,
+    setDemoMode: setDemoMode,
+    shouldUseLive: shouldUseLive,
+    shouldUseDemo: shouldUseDemo,
+    updateHeaderModeBadge: updateHeaderModeBadge,
+    addDemoModeListener: addDemoModeListener,
     getSlaveAndFunc: getSlaveAndFunc,
     coalesceRanges: coalesceRanges,
     readParams: readParams,
@@ -225,14 +293,21 @@
     addConnectionListener: addConnectionListener
   };
 
-  var connectionListeners = [];
-  function addConnectionListener(fn) {
-    if (typeof fn === 'function') connectionListeners.push(fn);
-  }
-
   window.onBleConnectionChange = function(connected) {
+    updateHeaderModeBadge();
     connectionListeners.forEach(function(fn) {
       try { fn(!!connected); } catch (e) { /* ignore */ }
     });
   };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    updateHeaderModeBadge();
+    var sel = document.getElementById('app_demo_mode');
+    if (sel) {
+      sel.value = getDemoMode();
+      sel.addEventListener('change', function() {
+        setDemoMode(this.value);
+      });
+    }
+  });
 })();

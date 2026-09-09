@@ -197,7 +197,7 @@
     delete charts[paramKey];
     delete dataStore[paramKey];
     saveActiveCharts();
-    if (isChartsPageActive() && window.LiveModbus && window.LiveModbus.isBleConnected()) {
+    if (isChartsPageActive() && window.LiveModbus && window.LiveModbus.shouldUseLive()) {
       startChartsLive();
     }
   }
@@ -260,7 +260,7 @@
 
   function startDataFeedForChart(paramKey, meta) {
     if (!meta) return;
-    if (window.LiveModbus && window.LiveModbus.isBleConnected()) {
+    if (window.LiveModbus && window.LiveModbus.shouldUseLive()) {
       if (demoTimers[paramKey]) {
         clearInterval(demoTimers[paramKey]);
         delete demoTimers[paramKey];
@@ -268,7 +268,9 @@
       if (isChartsPageActive()) startChartsLive();
       return;
     }
-    startDemoForChart(paramKey, meta);
+    if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
+      startDemoForChart(paramKey, meta);
+    }
   }
 
   function startDemoForChart(paramKey, meta) {
@@ -276,7 +278,8 @@
     if (demoTimers[paramKey]) clearInterval(demoTimers[paramKey]);
     lastDemoValues[paramKey] = meta.demoBase;
     demoTimers[paramKey] = setInterval(function() {
-      if (window.LiveModbus && window.LiveModbus.isBleConnected()) return;
+      if (window.LiveModbus && window.LiveModbus.shouldUseLive()) return;
+      if (!(window.LiveModbus && window.LiveModbus.shouldUseDemo())) return;
       var val;
       if (meta.demoRange === 0) {
         val = meta.demoBase;
@@ -299,7 +302,7 @@
 
   function startChartsLive() {
     stopChartsLive();
-    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) return;
+    if (!window.LiveModbus || !window.LiveModbus.shouldUseLive()) return;
     var keys = Object.keys(charts);
     if (!keys.length) return;
 
@@ -406,17 +409,26 @@
   document.addEventListener('DOMContentLoaded', function() {
     initCharts();
     window.addEventListener('resize', resizeAllCharts);
-    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
-      window.LiveModbus.addConnectionListener(function(connected) {
-        if (!isChartsPageActive()) return;
-        if (connected) startChartsLive();
-        else {
-          stopChartsLive();
-          Object.keys(charts).forEach(function(key) {
-            startDemoForChart(key, charts[key].meta);
-          });
-        }
+    function resyncChartsFeeds() {
+      if (!isChartsPageActive()) return;
+      stopChartsLive();
+      Object.keys(demoTimers).forEach(function(k) {
+        clearInterval(demoTimers[k]);
+        delete demoTimers[k];
       });
+      if (window.LiveModbus && window.LiveModbus.shouldUseLive()) {
+        startChartsLive();
+      } else if (window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
+        Object.keys(charts).forEach(function(key) {
+          startDemoForChart(key, charts[key].meta);
+        });
+      }
+    }
+    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
+      window.LiveModbus.addConnectionListener(resyncChartsFeeds);
+    }
+    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
+      window.LiveModbus.addDemoModeListener(resyncChartsFeeds);
     }
   });
 })();

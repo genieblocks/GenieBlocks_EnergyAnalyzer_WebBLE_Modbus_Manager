@@ -57,7 +57,7 @@
   }
 
   function startIoLive(device, ios) {
-    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) return;
+    if (!window.LiveModbus || !window.LiveModbus.shouldUseLive()) return;
     livePolling = true;
     window.LiveModbus.startLivePoll({
       owner: 'io-monitor',
@@ -170,12 +170,14 @@
 
     var device = info.device;
     var ios = device.ios;
-    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
+    var useLive = window.LiveModbus && window.LiveModbus.shouldUseLive();
+    var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
+    var modeLabel = useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı');
+    var modeClass = useLive ? 'bg-green-100 text-green-700' : (useDemo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500');
     var html = '';
 
     html += '<div class="flex justify-end mb-2"><span class="text-xs px-2 py-0.5 rounded-full ' +
-      (ble ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700') + '">' +
-      (ble ? 'Canlı' : 'Demo') + '</span></div>';
+      modeClass + '">' + modeLabel + '</span></div>';
 
     if (ios.digitalInputs && ios.digitalInputs.length) {
       html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
@@ -343,7 +345,7 @@
       });
     }
 
-    if (ble) startIoLive(device, ios);
+    if (useLive) startIoLive(device, ios);
   }
 
   window.initIoMonitor = initIoMonitor;
@@ -355,5 +357,10 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     initIoMonitor();
+    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
+      window.LiveModbus.addDemoModeListener(function() {
+        if (typeof window.refreshIoMonitor === 'function') window.refreshIoMonitor();
+      });
+    }
   });
 })();

@@ -23,6 +23,14 @@
         updateLiveBadge();
       });
     }
+    if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
+      window.LiveModbus.addDemoModeListener(function() {
+        if (currentDeviceId && currentDeviceId !== 'manual' && !paused) {
+          syncLiveOrDemo();
+        }
+        updateLiveBadge();
+      });
+    }
   }
 
   function renderDeviceSelector() {
@@ -94,10 +102,11 @@
     if (!isDashboardPageActive()) return;
 
     stopAllData();
-    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
-    if (ble) {
+    var useLive = window.LiveModbus && window.LiveModbus.shouldUseLive();
+    var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
+    if (useLive) {
       startLive(currentDeviceId);
-    } else {
+    } else if (useDemo) {
       startDemo(currentDeviceId);
     }
     updateLiveBadge();
@@ -196,14 +205,8 @@
   }
 
   function updateLiveBadge() {
-    var demoBadge = document.getElementById('header-demo-badge');
-    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
-    if (demoBadge) {
-      if (ble && currentDeviceId && currentDeviceId !== 'manual') {
-        demoBadge.classList.add('hidden');
-      } else if (!ble) {
-        demoBadge.classList.remove('hidden');
-      }
+    if (window.LiveModbus && typeof window.LiveModbus.updateHeaderModeBadge === 'function') {
+      window.LiveModbus.updateHeaderModeBadge();
     }
     updateModeBadge();
   }
@@ -303,7 +306,10 @@
       },
       onDisconnected: function() {
         liveActive = false;
-        if (!paused && currentDeviceId && currentDeviceId !== 'manual') startDemo(currentDeviceId);
+        if (!paused && currentDeviceId && currentDeviceId !== 'manual' &&
+            window.LiveModbus && window.LiveModbus.shouldUseDemo()) {
+          startDemo(currentDeviceId);
+        }
         updateLiveBadge();
       }
     });
