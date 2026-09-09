@@ -218,9 +218,6 @@
   }
 
   function updateLiveBadge() {
-    if (window.LiveModbus && typeof window.LiveModbus.updateHeaderModeBadge === 'function') {
-      window.LiveModbus.updateHeaderModeBadge();
-    }
     updateModeBadge();
   }
 

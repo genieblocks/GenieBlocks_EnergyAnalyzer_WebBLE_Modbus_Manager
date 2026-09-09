@@ -82,7 +82,6 @@
   function setDemoMode(mode) {
     if (mode !== 'auto' && mode !== 'force' && mode !== 'off') mode = 'auto';
     localStorage.setItem(DEMO_MODE_KEY, mode);
-    updateHeaderModeBadge();
     demoModeListeners.forEach(function(fn) {
       try { fn(mode); } catch (e) { /* ignore */ }
     });
@@ -100,27 +99,6 @@
     if (mode === 'force') return true;
     if (mode === 'off') return false;
     return !isBleConnected();
-  }
-
-  function updateHeaderModeBadge() {
-    var badge = document.getElementById('header-demo-badge');
-    if (!badge) return;
-    if (shouldUseLive()) {
-      badge.textContent = 'CANLI';
-      badge.className = 'live-badge shrink-0';
-      badge.title = 'Veriler BLE üzerinden canlı okunuyor.';
-      badge.classList.remove('hidden');
-    } else if (shouldUseDemo()) {
-      badge.textContent = 'DEMO';
-      badge.className = 'demo-badge shrink-0';
-      badge.title = 'Veriler simülasyondur. Gerçek veri için BLE bağlanın veya Ayarlar’dan Demo’yu kapatın.';
-      badge.classList.remove('hidden');
-    } else {
-      badge.textContent = '';
-      badge.className = 'hidden shrink-0';
-      badge.title = '';
-      badge.classList.add('hidden');
-    }
   }
 
   function addDemoModeListener(fn) {
@@ -382,7 +360,6 @@
     shouldUseDemo: shouldUseDemo,
     getModeBadge: getModeBadge,
     canWriteDevice: canWriteDevice,
-    updateHeaderModeBadge: updateHeaderModeBadge,
     addDemoModeListener: addDemoModeListener,
     getSlaveAndFunc: getSlaveAndFunc,
     coalesceRanges: coalesceRanges,
@@ -400,14 +377,12 @@
 
   window.onBleConnectionChange = function(connected) {
     if (!connected) clearAllHeldRegs();
-    updateHeaderModeBadge();
     connectionListeners.forEach(function(fn) {
       try { fn(!!connected); } catch (e) { /* ignore */ }
     });
   };
 
   document.addEventListener('DOMContentLoaded', function() {
-    updateHeaderModeBadge();
     var sel = document.getElementById('app_demo_mode');
     if (sel) {
       sel.value = getDemoMode();

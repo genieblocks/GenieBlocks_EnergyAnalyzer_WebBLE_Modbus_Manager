@@ -447,9 +447,6 @@ function toggleUIConnected(connected) {
   }
   const butConnect = document.getElementById('butConnect');
   if (butConnect) butConnect.textContent = lbl;
-  if (window.LiveModbus && typeof window.LiveModbus.updateHeaderModeBadge === 'function') {
-    window.LiveModbus.updateHeaderModeBadge();
-  }
   try {
     if (typeof window.onBleConnectionChange === 'function') {
       window.onBleConnectionChange(!!connected);
