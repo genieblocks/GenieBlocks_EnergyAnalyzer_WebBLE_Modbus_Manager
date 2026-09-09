@@ -2,7 +2,6 @@
 
 (function() {
   var ioDemoState = {};
-  var aiCharts = {};
   var livePolling = false;
 
   function initIoMonitor() {
@@ -66,6 +65,23 @@
     return { label: '—', className: 'bg-gray-100 text-gray-500' };
   }
 
+  function getAiRange(ai) {
+    var min = ai.min != null ? Number(ai.min) : 0;
+    var max = ai.max != null ? Number(ai.max) : 5;
+    if (!(max > min)) { min = 0; max = 5; }
+    return { min: min, max: max };
+  }
+
+  function updateAiBar(idx, value, ai) {
+    var bar = document.getElementById('io-ai-bar-' + idx);
+    if (!bar) return;
+    var range = getAiRange(ai || {});
+    var pct = ((Number(value) - range.min) / (range.max - range.min)) * 100;
+    if (!isFinite(pct)) pct = 0;
+    pct = Math.max(0, Math.min(100, pct));
+    bar.style.width = pct.toFixed(1) + '%';
+  }
+
   function stopIoLive() {
     livePolling = false;
     if (window.LiveModbus) window.LiveModbus.stopLivePoll('io-monitor');
@@ -117,8 +133,7 @@
         var v = values[ai.reg];
         var valEl = document.getElementById('io-ai-val-' + idx);
         if (valEl) valEl.textContent = Number(v).toFixed(2) + ' ' + (ai.unit || '');
-        var ch = aiCharts['ai' + idx];
-        if (ch) ch.setOption({ series: [{ data: [{ value: Number(v) }] }] });
+        updateAiBar(idx, v, ai);
       });
     }
     if (ios.analogOutputs) {
@@ -142,16 +157,28 @@
     ioDemoState['reg_' + reg] = state;
     var btn = document.querySelector('.io-toggle[data-reg="' + reg + '"]');
     if (!btn) return;
-    btn.textContent = state === 1 ? 'ON' : 'OFF';
+    var label = state === 1 ? 'Açık' : 'Kapalı';
+    var name = btn.getAttribute('data-name') || '';
+    btn.setAttribute('aria-checked', state === 1 ? 'true' : 'false');
+    btn.setAttribute('aria-label', name ? (name + ': ' + label) : label);
+    btn.title = label;
     btn.disabled = enabled === false;
-    btn.classList.toggle('opacity-50', enabled === false);
-    btn.classList.toggle('cursor-not-allowed', enabled === false);
-    btn.classList.toggle('bg-brand', state === 1);
-    btn.classList.toggle('text-white', state === 1);
-    btn.classList.toggle('border-brand', state === 1);
-    btn.classList.toggle('bg-gray-100', state !== 1);
-    btn.classList.toggle('text-gray-600', state !== 1);
-    btn.classList.toggle('border-gray-300', state !== 1);
+  }
+
+  function renderSwitchHtml(reg, name, state, interactive) {
+    var label = state === 1 ? 'Açık' : 'Kapalı';
+    return '<button type="button" role="switch" aria-checked="' + (state === 1 ? 'true' : 'false') + '"' +
+      ' aria-label="' + name + ': ' + label + '" title="' + label + '"' +
+      ' class="io-toggle shrink-0" data-reg="' + reg + '" data-name="' + name + '"' +
+      (interactive ? '' : ' disabled') + '>' +
+      '<span class="io-toggle-thumb" aria-hidden="true"></span></button>';
+  }
+
+  function renderToggleRow(reg, name, state, interactive) {
+    return '<div class="flex items-center justify-between gap-2 min-w-0">' +
+      '<span class="text-sm text-gray-600 truncate">' + name + '</span>' +
+      renderSwitchHtml(reg, name, state, interactive) +
+      '</div>';
   }
 
   function updateDacLabel(ao, raw) {
@@ -225,20 +252,13 @@
     if (ios.relays && ios.relays.length) {
       html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
       html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Röleler</div>';
-      html += '<div class="flex flex-wrap gap-4">';
+      html += '<div class="grid grid-cols-2 gap-3">';
       ios.relays.forEach(function(r) {
         var key = 'reg_' + r.reg;
         var state = 0;
         if (flags.useDemo && ioDemoState[key] !== undefined) state = ioDemoState[key];
         else if (flags.useDemo) { ioDemoState[key] = 0; state = 0; }
-        html += '<div class="flex items-center gap-2">';
-        html += '<span class="text-sm text-gray-600">' + r.name + '</span>';
-        html += '<button type="button" class="io-toggle px-3 py-1 rounded-full text-xs font-medium border ' +
-          (state === 1 ? 'bg-brand text-white border-brand' : 'bg-gray-100 text-gray-600 border-gray-300') +
-          (interactive ? '' : ' opacity-50 cursor-not-allowed') +
-          '" data-reg="' + r.reg + '" data-name="' + r.name + '"' +
-          (interactive ? '' : ' disabled') + '>' + (state === 1 ? 'ON' : 'OFF') + '</button>';
-        html += '</div>';
+        html += renderToggleRow(r.reg, r.name, state, interactive);
       });
       html += '</div></div>';
     }
@@ -246,20 +266,13 @@
     if (ios.digitalOutputs && ios.digitalOutputs.length) {
       html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
       html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Dijital Çıkışlar</div>';
-      html += '<div class="flex flex-wrap gap-4">';
+      html += '<div class="grid grid-cols-2 gap-3">';
       ios.digitalOutputs.forEach(function(do_) {
         var key = 'reg_' + do_.reg;
         var state = 0;
         if (flags.useDemo && ioDemoState[key] !== undefined) state = ioDemoState[key];
         else if (flags.useDemo) { ioDemoState[key] = 0; state = 0; }
-        html += '<div class="flex items-center gap-2">';
-        html += '<span class="text-sm text-gray-600">' + do_.name + '</span>';
-        html += '<button type="button" class="io-toggle px-3 py-1 rounded-full text-xs font-medium border ' +
-          (state === 1 ? 'bg-brand text-white border-brand' : 'bg-gray-100 text-gray-600 border-gray-300') +
-          (interactive ? '' : ' opacity-50 cursor-not-allowed') +
-          '" data-reg="' + do_.reg + '" data-name="' + do_.name + '"' +
-          (interactive ? '' : ' disabled') + '>' + (state === 1 ? 'ON' : 'OFF') + '</button>';
-        html += '</div>';
+        html += renderToggleRow(do_.reg, do_.name, state, interactive);
       });
       html += '</div></div>';
     }
@@ -270,13 +283,29 @@
       html += '<div class="grid gap-3">';
       ios.analogInputs.forEach(function(ai, idx) {
         var unit = ai.unit || '';
+        var range = getAiRange(ai);
         var display = '—';
-        if (flags.useDemo) display = (Math.random() * 2.5 + 0.5).toFixed(2) + ' ' + unit;
-        html += '<div class="flex items-center justify-between border-b border-gray-100 pb-2 last:border-0">';
+        var v = null;
+        if (flags.useDemo) {
+          v = Math.random() * 2.5 + 0.5;
+          display = v.toFixed(2) + ' ' + unit;
+        }
+        var pct = v != null
+          ? Math.max(0, Math.min(100, ((v - range.min) / (range.max - range.min)) * 100))
+          : 0;
+        html += '<div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">';
+        html += '<div class="flex items-center justify-between mb-1.5">';
         html += '<span class="text-sm text-gray-600">' + ai.name + '</span>';
         html += '<span class="text-lg font-mono font-semibold text-gray-800" id="io-ai-val-' + idx + '">' + display + '</span>';
         html += '</div>';
-        html += '<div id="io-ai-gauge-' + idx + '" style="width:100%;height:60px;"></div>';
+        html += '<div class="h-2 rounded-full bg-gray-200 overflow-hidden">';
+        html += '<div id="io-ai-bar-' + idx + '" class="h-full rounded-full bg-brand transition-all duration-300" style="width:' + pct.toFixed(1) + '%"></div>';
+        html += '</div>';
+        html += '<div class="flex justify-between mt-0.5 text-[10px] text-gray-400">';
+        html += '<span>' + range.min + (unit ? ' ' + unit : '') + '</span>';
+        html += '<span>' + range.max + (unit ? ' ' + unit : '') + '</span>';
+        html += '</div>';
+        html += '</div>';
       });
       html += '</div></div>';
     }
@@ -372,41 +401,6 @@
         if (ao) updateDacLabel(ao, raw);
       });
     });
-
-    if (ios.analogInputs && ios.analogInputs.length && typeof echarts !== 'undefined') {
-      ios.analogInputs.forEach(function(ai, idx) {
-        var dom = document.getElementById('io-ai-gauge-' + idx);
-        if (!dom) return;
-        if (aiCharts['ai' + idx]) aiCharts['ai' + idx].dispose();
-        var ch = echarts.init(dom);
-        aiCharts['ai' + idx] = ch;
-        var v = flags.useDemo ? (Math.random() * 2.5 + 0.5) : 0;
-        ch.setOption({
-          series: [{
-            type: 'gauge',
-            startAngle: 200,
-            endAngle: -20,
-            min: 0,
-            max: 5,
-            splitNumber: 5,
-            itemStyle: { color: '#00a7e9' },
-            progress: { show: true, width: 8 },
-            axisLine: { lineStyle: { width: 8 } },
-            axisTick: { show: false },
-            splitLine: { show: false },
-            axisLabel: { show: false },
-            anchor: { show: false },
-            title: { show: false },
-            detail: { show: false },
-            data: [{ value: v }]
-          }]
-        });
-        var valEl = document.getElementById('io-ai-val-' + idx);
-        if (valEl && flags.useDemo) {
-          valEl.textContent = v.toFixed(2) + ' ' + (ai.unit || '');
-        }
-      });
-    }
 
     if (flags.useLive) startIoLive(device, ios);
   }
