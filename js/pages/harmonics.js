@@ -4,6 +4,7 @@
   var harmonicChart = null;
   var currentCategory = 'current';
   var currentPhaseIdx = 0;
+  var harmLiveActive = false;
 
   function initHarmonics() {
     var container = document.getElementById('harmonics-content');
@@ -19,7 +20,70 @@
     return device;
   }
 
+  function stopHarmLive() {
+    harmLiveActive = false;
+    if (window.LiveModbus) window.LiveModbus.stopLivePoll('harmonics');
+  }
+
+  function getHarmonicStart(harm, phaseIdx) {
+    if (harm.phaseStartRegs && harm.phaseStartRegs[phaseIdx] != null) {
+      return harm.phaseStartRegs[phaseIdx];
+    }
+    var orders = getHarmonicOrders(harm);
+    var start = harm.startReg != null ? harm.startReg : 0;
+    return start + phaseIdx * orders.length;
+  }
+
+  function startHarmLive(device) {
+    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) return;
+    harmLiveActive = true;
+    window.LiveModbus.startLivePoll({
+      owner: 'harmonics',
+      intervalMs: 2500,
+      getDeviceDef: function() { return getDevice(); },
+      getParams: function() {
+        var d = getDevice();
+        if (!d) return [];
+        var harm = d.harmonics[currentCategory];
+        if (!harm) return [];
+        var orders = getHarmonicOrders(harm);
+        var start = getHarmonicStart(harm, currentPhaseIdx);
+        var params = [];
+        for (var i = 0; i < orders.length; i++) {
+          params.push({
+            reg: start + i,
+            len: 1,
+            type: harm.type || 'uint16',
+            scale: harm.scale != null ? harm.scale : 0.1
+          });
+        }
+        return params;
+      },
+      onValues: function(values, params) {
+        var d = getDevice();
+        if (!d) return;
+        var harm = d.harmonics[currentCategory];
+        if (!harm) return;
+        var orders = getHarmonicOrders(harm);
+        var start = getHarmonicStart(harm, currentPhaseIdx);
+        var data = orders.map(function(_, i) {
+          var v = values[start + i];
+          return v != null ? parseFloat(Number(v).toFixed(1)) : 0;
+        });
+        paintChart(harm, orders, data, true);
+      },
+      onError: function(e) {
+        if (window.logMsg) window.logMsg('Harmonik canlı okuma: ' + (e.message || e));
+      },
+      onDisconnected: function() {
+        harmLiveActive = false;
+        renderChart();
+      }
+    });
+  }
+
   function renderHarmonicsUI(container) {
+    stopHarmLive();
     var device = getDevice();
 
     if (!device) {
@@ -31,8 +95,8 @@
       return;
     }
 
+    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
     var html = '';
-
 
     html += '<div class="flex items-center gap-2 mb-3 flex-wrap">';
     var categoryLabels = {
@@ -52,6 +116,7 @@
     html += '</select>';
     html += '<select id="harm-phase" class="px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"></select>';
     html += '<button id="harm-refresh" class="px-3 py-1.5 rounded-full bg-brand text-white font-medium text-sm border-none cursor-pointer hover:bg-brand-dark transition-colors">Yenile</button>';
+    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + (ble ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700') + '">' + (ble ? 'Canlı' : 'Demo') + '</span>';
     html += '</div>';
 
     html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">';
@@ -69,21 +134,32 @@
       currentCategory = this.value;
       currentPhaseIdx = 0;
       updatePhaseOptions();
-      renderChart();
+      restartHarmData();
     });
 
     phaseSelect.addEventListener('change', function() {
       currentPhaseIdx = parseInt(this.value, 10);
-      renderChart();
+      restartHarmData();
     });
 
     document.getElementById('harm-refresh').addEventListener('click', function() {
-      renderChart();
+      restartHarmData();
     });
 
     updatePhaseOptions();
     initChart();
-    renderChart();
+    restartHarmData();
+  }
+
+  function restartHarmData() {
+    stopHarmLive();
+    var device = getDevice();
+    if (!device) return;
+    if (window.LiveModbus && window.LiveModbus.isBleConnected()) {
+      startHarmLive(device);
+    } else {
+      renderChart();
+    }
   }
 
   function updatePhaseOptions() {
@@ -106,6 +182,9 @@
   function initChart() {
     var chartDom = document.getElementById('harm-chart');
     if (!chartDom) return;
+    if (harmonicChart) {
+      try { harmonicChart.dispose(); } catch (e) { /* ignore */ }
+    }
     harmonicChart = echarts.init(chartDom);
 
     window.addEventListener('resize', function() {
@@ -134,15 +213,18 @@
   }
 
   function renderChart() {
-    if (!harmonicChart) return;
     var device = getDevice();
     if (!device) return;
     var harm = device.harmonics[currentCategory];
     if (!harm) return;
-
-    var phaseName = harm.phases[currentPhaseIdx] || 'L1';
     var orders = getHarmonicOrders(harm);
     var data = generateDemoHarmonicsForOrders(orders);
+    paintChart(harm, orders, data, false);
+  }
+
+  function paintChart(harm, orders, data, isLive) {
+    if (!harmonicChart) return;
+    var phaseName = harm.phases[currentPhaseIdx] || 'L1';
     var categories = orders.map(function(o) { return o + '.'; });
 
     var catLabelsShort = {
@@ -153,7 +235,7 @@
 
     harmonicChart.setOption({
       title: {
-        text: phaseName + ' ' + catLabel + ' Harmonik Spektrumu',
+        text: phaseName + ' ' + catLabel + ' Harmonik Spektrumu' + (isLive ? ' (Canlı)' : ' (Demo)'),
         left: 'center',
         textStyle: { fontSize: 13, fontWeight: 600, color: '#374151' }
       },
@@ -207,8 +289,8 @@
     statsHtml += '</div>';
     statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">En Yüksek</div>';
-    statsHtml += '<div class="text-lg font-bold text-red-600">' + maxItem.value.toFixed(1) + '%</div>';
-    statsHtml += '<div class="text-xs text-gray-400">' + maxItem.order + '. harmonik</div>';
+    statsHtml += '<div class="text-lg font-bold text-red-600">' + (maxItem.value > -Infinity ? maxItem.value.toFixed(1) : '—') + '%</div>';
+    statsHtml += '<div class="text-xs text-gray-400">' + (maxItem.order || '—') + '. harmonik</div>';
     statsHtml += '</div>';
     statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">Toplam</div>';
@@ -225,6 +307,7 @@
     var container = document.getElementById('harmonics-content');
     if (container) renderHarmonicsUI(container);
   };
+  window.stopHarmonicsLive = stopHarmLive;
 
   document.addEventListener('DOMContentLoaded', function() {
     initHarmonics();

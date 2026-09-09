@@ -29,9 +29,12 @@
 
     var device = info.device;
     var html = '';
+    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
 
-
-    html += '<div class="text-sm text-gray-500 mb-3">' + device.name + ' — Cihaz Konfigürasyonu</div>';
+    html += '<div class="flex items-center justify-between mb-3">';
+    html += '<div class="text-sm text-gray-500">' + device.name + ' — Cihaz Konfigürasyonu</div>';
+    html += '<span class="text-xs px-2 py-0.5 rounded-full ' + (ble ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700') + '">' + (ble ? 'Canlı' : 'Demo / Bağlı değil') + '</span>';
+    html += '</div>';
 
     device.settings.forEach(function(group, gi) {
       html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
@@ -55,6 +58,7 @@
           html += '<input type="number" id="' + inputId + '" value="' + demoVal + '"';
           if (param.min !== undefined) html += ' min="' + param.min + '"';
           if (param.max !== undefined) html += ' max="' + param.max + '"';
+          if (param.scale && param.scale < 1) html += ' step="' + param.scale + '"';
           html += ' class="px-2 py-1 border border-gray-300 rounded text-sm w-24 text-right">';
         }
 
@@ -74,9 +78,9 @@
       html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Komutlar</div>';
       html += '<p class="text-xs text-gray-500 mb-3">Sıfırlama ve tek seferlik yazma komutları. Onay gerektiren işlemlerde önce onay istenir.</p>';
       html += '<div class="flex flex-wrap gap-2">';
-      device.commands.forEach(function(cmd) {
+      device.commands.forEach(function(cmd, ci) {
         html += '<button type="button" class="ds-cmd px-3 py-1.5 rounded-full text-xs font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors" ' +
-          'data-name="' + (cmd.name || '').replace(/"/g, '&quot;') + '" data-confirm="' + (cmd.confirm ? '1' : '0') + '">' + (cmd.name || 'Komut') + '</button>';
+          'data-idx="' + ci + '" data-name="' + (cmd.name || '').replace(/"/g, '&quot;') + '" data-confirm="' + (cmd.confirm ? '1' : '0') + '">' + (cmd.name || 'Komut') + '</button>';
       });
       html += '</div></div>';
     }
@@ -86,12 +90,13 @@
     if (device.commands && device.commands.length) {
       container.querySelectorAll('.ds-cmd').forEach(function(btn) {
         btn.addEventListener('click', function() {
+          var idx = parseInt(this.dataset.idx, 10);
+          var cmd = device.commands[idx];
           var name = (this.dataset.name || '').replace(/&quot;/g, '"');
           var needConfirm = this.dataset.confirm === '1';
+          var self = this;
           function runCommand() {
-            showToast('Sıfırlama başarılı');
-            btn.style.backgroundColor = '#d1fae5';
-            setTimeout(function() { btn.style.backgroundColor = ''; }, 600);
+            runLiveCommand(device, cmd, self);
           }
           if (needConfirm && typeof window.confirm === 'function') {
             if (window.confirm(name + ' komutunu göndermek istediğinize emin misiniz?')) runCommand();
@@ -105,50 +110,97 @@
     container.querySelectorAll('.ds-read').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var gi = parseInt(this.dataset.group, 10);
-        simulateRead(device.settings[gi]);
+        liveReadGroup(device, device.settings[gi], this);
       });
     });
 
     container.querySelectorAll('.ds-write').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var gi = parseInt(this.dataset.group, 10);
-        simulateWrite(device.settings[gi]);
+        liveWriteGroup(device, device.settings[gi], this);
       });
     });
   }
 
-  function simulateRead(group) {
-    group.params.forEach(function(param) {
-      var inputId = 'ds_' + param.reg.toString(16);
-      var el = document.getElementById(inputId);
-      if (!el) return;
-
-      if (param.options) {
-        var keys = Object.keys(param.options);
-        var randKey = keys[Math.floor(Math.random() * keys.length)];
-        el.value = randKey;
-      } else {
-        var min = param.min || 0;
-        var max = param.max || 100;
-        el.value = Math.floor(min + Math.random() * (max - min));
-      }
-
-      el.style.transition = 'background-color 0.3s';
-      el.style.backgroundColor = '#d1fae5';
-      setTimeout(function() { el.style.backgroundColor = ''; }, 800);
-    });
+  function flashEl(el, color) {
+    if (!el) return;
+    el.style.transition = 'background-color 0.3s';
+    el.style.backgroundColor = color;
+    setTimeout(function() { el.style.backgroundColor = ''; }, 800);
   }
 
-  function simulateWrite(group) {
-    group.params.forEach(function(param) {
-      var inputId = 'ds_' + param.reg.toString(16);
-      var el = document.getElementById(inputId);
-      if (!el) return;
+  async function liveReadGroup(device, group, btn) {
+    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) {
+      showToast('Canlı okuma için BLE bağlantısı gerekli');
+      return;
+    }
+    if (btn) btn.disabled = true;
+    try {
+      var values = await window.LiveModbus.readParams(device, group.params);
+      group.params.forEach(function(param) {
+        var inputId = 'ds_' + param.reg.toString(16);
+        var el = document.getElementById(inputId);
+        if (!el || values[param.reg] === undefined) return;
+        var val = values[param.reg];
+        if (param.options) {
+          el.value = String(Math.round(val / (param.scale || 1)));
+        } else if (param.scale && param.scale !== 1) {
+          el.value = Number(val).toFixed(param.precision != null ? param.precision : 2);
+        } else {
+          el.value = Math.round(val);
+        }
+        flashEl(el, '#d1fae5');
+      });
+      showToast('Okuma başarılı');
+    } catch (e) {
+      showToast('Okuma hatası: ' + (e.message || e));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
 
-      el.style.transition = 'background-color 0.3s';
-      el.style.backgroundColor = '#bfdbfe';
-      setTimeout(function() { el.style.backgroundColor = ''; }, 800);
-    });
+  async function liveWriteGroup(device, group, btn) {
+    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) {
+      showToast('Canlı yazma için BLE bağlantısı gerekli');
+      return;
+    }
+    if (btn) btn.disabled = true;
+    try {
+      for (var i = 0; i < group.params.length; i++) {
+        var param = group.params[i];
+        if (!param.writable && param.writable !== undefined) continue;
+        var inputId = 'ds_' + param.reg.toString(16);
+        var el = document.getElementById(inputId);
+        if (!el) continue;
+        var raw = window.LiveModbus.encodeParamRaw(param, el.value);
+        if (raw === null) throw new Error('Geçersiz değer: ' + param.name);
+        await window.LiveModbus.writeRegisters(device, param.reg, [raw]);
+        flashEl(el, '#bfdbfe');
+      }
+      showToast('Yazma başarılı');
+    } catch (e) {
+      showToast('Yazma hatası: ' + (e.message || e));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function runLiveCommand(device, cmd, btn) {
+    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) {
+      showToast('Komut için BLE bağlantısı gerekli');
+      return;
+    }
+    try {
+      var val = cmd.writeValue != null ? cmd.writeValue : 1;
+      await window.LiveModbus.writeRegisters(device, cmd.reg, [val & 0xffff]);
+      showToast((cmd.name || 'Komut') + ' gönderildi');
+      if (btn) {
+        btn.style.backgroundColor = '#d1fae5';
+        setTimeout(function() { btn.style.backgroundColor = ''; }, 600);
+      }
+    } catch (e) {
+      showToast('Komut hatası: ' + (e.message || e));
+    }
   }
 
   function showToast(message) {

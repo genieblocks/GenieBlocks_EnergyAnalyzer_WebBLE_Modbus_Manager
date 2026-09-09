@@ -387,6 +387,10 @@ function convertJSON(chunk) {
   }
 }
 
+function isBleConnected() {
+  return !!(typeof device !== 'undefined' && device && device.gatt && device.gatt.connected);
+}
+
 function toggleUIConnected(connected) {
   const status = document.getElementById('connection-status');
   const demoBadge = document.getElementById('header-demo-badge');
@@ -442,6 +446,11 @@ function toggleUIConnected(connected) {
   }
   const butConnect = document.getElementById('butConnect');
   if (butConnect) butConnect.textContent = lbl;
+  try {
+    if (typeof window.onBleConnectionChange === 'function') {
+      window.onBleConnectionChange(!!connected);
+    }
+  } catch (e) { /* ignore page handler errors */ }
 }
 
 function loadAllSettings() {
@@ -1059,6 +1068,14 @@ async function sendModbusRequest(packet) {
   const value = await responseChar.readValue();
   return parseModbusResponse(value);
 }
+
+// Live Modbus / sayfa poller API
+window.isBleConnected = isBleConnected;
+window.buildModbusQueryPacket = buildModbusQueryPacket;
+window.sendModbusRequest = sendModbusRequest;
+window.statusCodeToText = statusCodeToText;
+window.parseModbusResponse = parseModbusResponse;
+window.logMsg = logMsg;
 
 function bufferToString(dataView) {
   let str = '';

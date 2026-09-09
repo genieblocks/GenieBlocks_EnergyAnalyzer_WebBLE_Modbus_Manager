@@ -182,7 +182,7 @@
     };
     scheduleResize(0);
 
-    startDemoForChart(paramKey, meta);
+    startDataFeedForChart(paramKey, meta);
     saveActiveCharts();
   }
 
@@ -197,6 +197,9 @@
     delete charts[paramKey];
     delete dataStore[paramKey];
     saveActiveCharts();
+    if (isChartsPageActive() && window.LiveModbus && window.LiveModbus.isBleConnected()) {
+      startChartsLive();
+    }
   }
 
   function removeAllCharts() {
@@ -250,11 +253,30 @@
 
   var lastDemoValues = {};
 
+  function isChartsPageActive() {
+    var page = document.getElementById('page-charts');
+    return page && page.classList.contains('active');
+  }
+
+  function startDataFeedForChart(paramKey, meta) {
+    if (!meta) return;
+    if (window.LiveModbus && window.LiveModbus.isBleConnected()) {
+      if (demoTimers[paramKey]) {
+        clearInterval(demoTimers[paramKey]);
+        delete demoTimers[paramKey];
+      }
+      if (isChartsPageActive()) startChartsLive();
+      return;
+    }
+    startDemoForChart(paramKey, meta);
+  }
+
   function startDemoForChart(paramKey, meta) {
     if (!meta) return;
     if (demoTimers[paramKey]) clearInterval(demoTimers[paramKey]);
     lastDemoValues[paramKey] = meta.demoBase;
     demoTimers[paramKey] = setInterval(function() {
+      if (window.LiveModbus && window.LiveModbus.isBleConnected()) return;
       var val;
       if (meta.demoRange === 0) {
         val = meta.demoBase;
@@ -269,6 +291,59 @@
       lastDemoValues[paramKey] = val;
       pushData(paramKey, val);
     }, 1000);
+  }
+
+  function stopChartsLive() {
+    if (window.LiveModbus) window.LiveModbus.stopLivePoll('charts');
+  }
+
+  function startChartsLive() {
+    stopChartsLive();
+    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) return;
+    var keys = Object.keys(charts);
+    if (!keys.length) return;
+
+    Object.keys(demoTimers).forEach(function(k) {
+      clearInterval(demoTimers[k]);
+      delete demoTimers[k];
+    });
+
+    window.LiveModbus.startLivePoll({
+      owner: 'charts',
+      intervalMs: 1500,
+      getDeviceDef: function() {
+        var deviceId = typeof window.getCurrentDeviceId === 'function' ? window.getCurrentDeviceId() : null;
+        return deviceId ? getDeviceById(deviceId) : null;
+      },
+      getParams: function() {
+        var params = [];
+        Object.keys(charts).forEach(function(key) {
+          var meta = charts[key].meta;
+          if (!meta || meta.reg == null) return;
+          var device = getDeviceById(meta.deviceId);
+          var found = null;
+          if (device && device.groups) {
+            device.groups.forEach(function(g) {
+              g.params.forEach(function(p) {
+                if (p.reg === meta.reg) found = p;
+              });
+            });
+          }
+          params.push(found || { reg: meta.reg, len: 1, type: 'uint16', scale: 1 });
+        });
+        return params;
+      },
+      onValues: function(values) {
+        Object.keys(charts).forEach(function(key) {
+          var meta = charts[key].meta;
+          if (!meta || values[meta.reg] === undefined) return;
+          pushData(key, values[meta.reg]);
+        });
+      },
+      onError: function(e) {
+        if (window.logMsg) window.logMsg('Grafik canlı okuma: ' + (e.message || e));
+      }
+    });
   }
 
   function saveActiveCharts() {
@@ -325,9 +400,23 @@
 
   window.initCharts = initCharts;
   window.resizeAllCharts = resizeAllCharts;
+  window.startChartsLiveIfConnected = startChartsLive;
+  window.stopChartsLive = stopChartsLive;
 
   document.addEventListener('DOMContentLoaded', function() {
     initCharts();
     window.addEventListener('resize', resizeAllCharts);
+    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
+      window.LiveModbus.addConnectionListener(function(connected) {
+        if (!isChartsPageActive()) return;
+        if (connected) startChartsLive();
+        else {
+          stopChartsLive();
+          Object.keys(charts).forEach(function(key) {
+            startDemoForChart(key, charts[key].meta);
+          });
+        }
+      });
+    }
   });
 })();

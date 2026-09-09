@@ -1,6 +1,16 @@
 'use strict';
 
 (function() {
+  var currentPageId = 'dashboard';
+
+  function stopAllPagePollers() {
+    if (typeof window.stopDashboardLive === 'function') window.stopDashboardLive();
+    if (typeof window.stopHarmonicsLive === 'function') window.stopHarmonicsLive();
+    if (typeof window.stopIoMonitorLive === 'function') window.stopIoMonitorLive();
+    if (typeof window.stopChartsLive === 'function') window.stopChartsLive();
+    if (window.LiveModbus) window.LiveModbus.stopLivePoll();
+  }
+
   function showPage(pageId) {
     document.querySelectorAll('.page').forEach(function(p) {
       p.classList.remove('active');
@@ -17,11 +27,29 @@
 
     window.scrollTo(0, 0);
 
-    if (pageId === 'charts' && typeof window.resizeAllCharts === 'function') {
-      requestAnimationFrame(function() {
-        window.resizeAllCharts();
-        setTimeout(window.resizeAllCharts, 200);
-      });
+    stopAllPagePollers();
+    currentPageId = pageId;
+
+    if (pageId === 'dashboard') {
+      if (typeof window.startDashboardLiveIfConnected === 'function') {
+        requestAnimationFrame(function() {
+          window.startDashboardLiveIfConnected();
+        });
+      }
+    }
+
+    if (pageId === 'charts') {
+      if (typeof window.resizeAllCharts === 'function') {
+        requestAnimationFrame(function() {
+          window.resizeAllCharts();
+          setTimeout(window.resizeAllCharts, 200);
+        });
+      }
+      if (typeof window.startChartsLiveIfConnected === 'function') {
+        requestAnimationFrame(function() {
+          window.startChartsLiveIfConnected();
+        });
+      }
     }
 
     if (pageId === 'harmonics' && typeof window.refreshHarmonics === 'function') {
@@ -44,6 +72,7 @@
   }
 
   window.showPage = showPage;
+  window.getCurrentPageId = function() { return currentPageId; };
 
   document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('#bottom-nav .nav-btn').forEach(function(btn) {
@@ -51,7 +80,6 @@
         showPage(this.dataset.page);
       });
     });
-
     showPage('dashboard');
   });
 })();

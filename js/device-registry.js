@@ -498,6 +498,7 @@ var DeviceRegistry = {
     ]
   },
 
+  // ENAN Modbus Tablosu REV4 (PDU = PLC 40xxx - 40001)
   "devinno-enan01": {
     name: "Devinno ENAN-01",
     manufacturer: "Devinno",
@@ -611,10 +612,10 @@ var DeviceRegistry = {
         unit: "kWh",
         icon: "battery",
         params: [
-          { name: "Import Aktif Enerji", reg: 194, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 12543, demoRange: 0 },
-          { name: "Export Aktif Enerji", reg: 195, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1205, demoRange: 0 },
-          { name: "Import Reaktif Enerji", reg: 196, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 3421, demoRange: 0 },
-          { name: "Export Reaktif Enerji", reg: 197, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 520, demoRange: 0 }
+          { name: "Import Aktif Enerji", reg: 476, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 12543, demoRange: 0 },
+          { name: "Export Aktif Enerji", reg: 477, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1205, demoRange: 0 },
+          { name: "Import Reaktif Enerji", reg: 478, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 3421, demoRange: 0 },
+          { name: "Export Reaktif Enerji", reg: 479, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 520, demoRange: 0 }
         ]
       },
       {
@@ -622,9 +623,9 @@ var DeviceRegistry = {
         unit: "",
         icon: "clock",
         params: [
-          { name: "Run Hour", reg: 191, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 8760, demoRange: 0 },
-          { name: "On Hour", reg: 192, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 6500, demoRange: 0 },
-          { name: "Güç Kesilme Sayacı", reg: 193, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 23, demoRange: 0 }
+          { name: "Run Hour", reg: 473, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 8760, demoRange: 0 },
+          { name: "On Hour", reg: 474, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 6500, demoRange: 0 },
+          { name: "Güç Kesilme Sayacı", reg: 475, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 23, demoRange: 0 }
         ]
       },
       {
@@ -632,10 +633,18 @@ var DeviceRegistry = {
         unit: "",
         icon: "trending-up",
         params: [
-          { name: "Akım Demand", reg: 187, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 4.5, demoRange: 1.0 },
-          { name: "Aktif Güç Demand", reg: 188, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 3200, demoRange: 300 },
-          { name: "Reaktif Güç Demand", reg: 189, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 300, demoRange: 100 },
-          { name: "Görünür Güç Demand", reg: 190, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 3400, demoRange: 300 }
+          { name: "Akım Demand", reg: 469, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 4.5, demoRange: 1.0 },
+          { name: "Aktif Güç Demand", reg: 470, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 3200, demoRange: 300 },
+          { name: "Reaktif Güç Demand", reg: 471, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 300, demoRange: 100 },
+          { name: "Görünür Güç Demand", reg: 472, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 3400, demoRange: 300 }
+        ]
+      },
+      {
+        title: "Status",
+        unit: "",
+        icon: "info",
+        params: [
+          { name: "Status Bayrağı", reg: 468, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 0, demoRange: 0 }
         ]
       },
       {
@@ -643,19 +652,9 @@ var DeviceRegistry = {
         unit: "V",
         icon: "chevrons-up",
         params: [
-          { name: "Maks. Gerilim A", reg: 126, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 242, demoRange: 3 },
-          { name: "Maks. Gerilim B", reg: 127, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 243, demoRange: 3 },
-          { name: "Maks. Gerilim C", reg: 128, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 241, demoRange: 3 }
-        ]
-      },
-      {
-        title: "Min. Gerilim",
-        unit: "V",
-        icon: "chevrons-down",
-        params: [
-          { name: "Min. Gerilim A", reg: 129, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 218, demoRange: 3 },
-          { name: "Min. Gerilim B", reg: 130, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 219, demoRange: 3 },
-          { name: "Min. Gerilim C", reg: 131, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 217, demoRange: 3 }
+          { name: "Maks. Gerilim A", reg: 408, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 242, demoRange: 3 },
+          { name: "Maks. Gerilim B", reg: 409, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 243, demoRange: 3 },
+          { name: "Maks. Gerilim C", reg: 410, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 241, demoRange: 3 }
         ]
       },
       {
@@ -663,19 +662,9 @@ var DeviceRegistry = {
         unit: "A",
         icon: "chevrons-up",
         params: [
-          { name: "Maks. Akım A", reg: 132, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 7.5, demoRange: 1.0 },
-          { name: "Maks. Akım B", reg: 133, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 7.2, demoRange: 1.0 },
-          { name: "Maks. Akım C", reg: 134, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 7.3, demoRange: 1.0 }
-        ]
-      },
-      {
-        title: "Min. Akım",
-        unit: "A",
-        icon: "chevrons-down",
-        params: [
-          { name: "Min. Akım A", reg: 135, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 2.1, demoRange: 0.5 },
-          { name: "Min. Akım B", reg: 136, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 1.9, demoRange: 0.5 },
-          { name: "Min. Akım C", reg: 137, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 2.0, demoRange: 0.5 }
+          { name: "Maks. Akım A", reg: 411, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 7.5, demoRange: 1.0 },
+          { name: "Maks. Akım B", reg: 412, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 7.2, demoRange: 1.0 },
+          { name: "Maks. Akım C", reg: 413, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 7.3, demoRange: 1.0 }
         ]
       },
       {
@@ -683,19 +672,29 @@ var DeviceRegistry = {
         unit: "Hz",
         icon: "chevrons-up",
         params: [
-          { name: "Maks. Frekans A", reg: 138, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 50.12, demoRange: 0.05 },
-          { name: "Maks. Frekans B", reg: 139, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 50.11, demoRange: 0.05 },
-          { name: "Maks. Frekans C", reg: 140, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 50.13, demoRange: 0.05 }
+          { name: "Maks. Frekans A", reg: 414, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 50.12, demoRange: 0.05 },
+          { name: "Maks. Frekans B", reg: 415, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 50.11, demoRange: 0.05 },
+          { name: "Maks. Frekans C", reg: 416, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 50.13, demoRange: 0.05 }
         ]
       },
       {
-        title: "Min. Frekans",
-        unit: "Hz",
-        icon: "chevrons-down",
+        title: "Maks. Cos φ",
+        unit: "",
+        icon: "chevrons-up",
         params: [
-          { name: "Min. Frekans A", reg: 141, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 49.88, demoRange: 0.05 },
-          { name: "Min. Frekans B", reg: 142, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 49.89, demoRange: 0.05 },
-          { name: "Min. Frekans C", reg: 143, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 49.87, demoRange: 0.05 }
+          { name: "Maks. Cos φ A", reg: 417, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.99, demoRange: 0.02 },
+          { name: "Maks. Cos φ B", reg: 418, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.98, demoRange: 0.02 },
+          { name: "Maks. Cos φ C", reg: 419, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.97, demoRange: 0.02 }
+        ]
+      },
+      {
+        title: "Maks. Güç Faktörü",
+        unit: "",
+        icon: "chevrons-up",
+        params: [
+          { name: "Maks. PF A", reg: 420, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.99, demoRange: 0.02 },
+          { name: "Maks. PF B", reg: 421, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.98, demoRange: 0.02 },
+          { name: "Maks. PF C", reg: 422, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.97, demoRange: 0.02 }
         ]
       },
       {
@@ -703,9 +702,92 @@ var DeviceRegistry = {
         unit: "W",
         icon: "chevrons-up",
         params: [
-          { name: "Maks. Aktif Güç A", reg: 156, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1500, demoRange: 100 },
-          { name: "Maks. Aktif Güç B", reg: 157, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1450, demoRange: 100 },
-          { name: "Maks. Aktif Güç C", reg: 158, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1480, demoRange: 100 }
+          { name: "Maks. Aktif Güç A", reg: 423, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1500, demoRange: 100 },
+          { name: "Maks. Aktif Güç B", reg: 424, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1450, demoRange: 100 },
+          { name: "Maks. Aktif Güç C", reg: 425, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1480, demoRange: 100 }
+        ]
+      },
+      {
+        title: "Maks. Reaktif Güç",
+        unit: "VAr",
+        icon: "chevrons-up",
+        params: [
+          { name: "Maks. Reaktif Güç A", reg: 426, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 200, demoRange: 40 },
+          { name: "Maks. Reaktif Güç B", reg: 427, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 180, demoRange: 40 },
+          { name: "Maks. Reaktif Güç C", reg: 428, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 190, demoRange: 40 }
+        ]
+      },
+      {
+        title: "Maks. Görünür Güç",
+        unit: "VA",
+        icon: "chevrons-up",
+        params: [
+          { name: "Maks. Görünür Güç A", reg: 429, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1550, demoRange: 100 },
+          { name: "Maks. Görünür Güç B", reg: 430, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1500, demoRange: 100 },
+          { name: "Maks. Görünür Güç C", reg: 431, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1520, demoRange: 100 }
+        ]
+      },
+      {
+        title: "Maks. THD",
+        unit: "%",
+        icon: "chevrons-up",
+        params: [
+          { name: "Maks. THDV A", reg: 432, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 3.5, demoRange: 0.5 },
+          { name: "Maks. THDV B", reg: 433, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 3.2, demoRange: 0.5 },
+          { name: "Maks. THDV C", reg: 434, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 3.4, demoRange: 0.5 },
+          { name: "Maks. THDI A", reg: 435, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 12.0, demoRange: 2.0 },
+          { name: "Maks. THDI B", reg: 436, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 11.0, demoRange: 2.0 },
+          { name: "Maks. THDI C", reg: 437, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 11.5, demoRange: 2.0 }
+        ]
+      },
+      {
+        title: "Min. Gerilim",
+        unit: "V",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. Gerilim A", reg: 438, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 218, demoRange: 3 },
+          { name: "Min. Gerilim B", reg: 439, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 219, demoRange: 3 },
+          { name: "Min. Gerilim C", reg: 440, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 217, demoRange: 3 }
+        ]
+      },
+      {
+        title: "Min. Akım",
+        unit: "A",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. Akım A", reg: 441, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 2.1, demoRange: 0.5 },
+          { name: "Min. Akım B", reg: 442, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 1.9, demoRange: 0.5 },
+          { name: "Min. Akım C", reg: 443, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 2.0, demoRange: 0.5 }
+        ]
+      },
+      {
+        title: "Min. Frekans",
+        unit: "Hz",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. Frekans A", reg: 444, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 49.88, demoRange: 0.05 },
+          { name: "Min. Frekans B", reg: 445, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 49.89, demoRange: 0.05 },
+          { name: "Min. Frekans C", reg: 446, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 49.87, demoRange: 0.05 }
+        ]
+      },
+      {
+        title: "Min. Cos φ",
+        unit: "",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. Cos φ A", reg: 447, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.90, demoRange: 0.02 },
+          { name: "Min. Cos φ B", reg: 448, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.89, demoRange: 0.02 },
+          { name: "Min. Cos φ C", reg: 449, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.88, demoRange: 0.02 }
+        ]
+      },
+      {
+        title: "Min. Güç Faktörü",
+        unit: "",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. PF A", reg: 450, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.90, demoRange: 0.02 },
+          { name: "Min. PF B", reg: 451, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.89, demoRange: 0.02 },
+          { name: "Min. PF C", reg: 452, len: 1, type: "uint16", scale: 0.001, precision: 3, demoBase: 0.88, demoRange: 0.02 }
         ]
       },
       {
@@ -713,9 +795,42 @@ var DeviceRegistry = {
         unit: "W",
         icon: "chevrons-down",
         params: [
-          { name: "Min. Aktif Güç A", reg: 159, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 800, demoRange: 100 },
-          { name: "Min. Aktif Güç B", reg: 160, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 780, demoRange: 100 },
-          { name: "Min. Aktif Güç C", reg: 161, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 790, demoRange: 100 }
+          { name: "Min. Aktif Güç A", reg: 453, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 800, demoRange: 100 },
+          { name: "Min. Aktif Güç B", reg: 454, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 780, demoRange: 100 },
+          { name: "Min. Aktif Güç C", reg: 455, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 790, demoRange: 100 }
+        ]
+      },
+      {
+        title: "Min. Reaktif Güç",
+        unit: "VAr",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. Reaktif Güç A", reg: 456, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 50, demoRange: 20 },
+          { name: "Min. Reaktif Güç B", reg: 457, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 45, demoRange: 20 },
+          { name: "Min. Reaktif Güç C", reg: 458, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 48, demoRange: 20 }
+        ]
+      },
+      {
+        title: "Min. Görünür Güç",
+        unit: "VA",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. Görünür Güç A", reg: 459, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 820, demoRange: 100 },
+          { name: "Min. Görünür Güç B", reg: 460, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 800, demoRange: 100 },
+          { name: "Min. Görünür Güç C", reg: 461, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 810, demoRange: 100 }
+        ]
+      },
+      {
+        title: "Min. THD",
+        unit: "%",
+        icon: "chevrons-down",
+        params: [
+          { name: "Min. THDV A", reg: 462, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 1.2, demoRange: 0.3 },
+          { name: "Min. THDV B", reg: 463, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 1.1, demoRange: 0.3 },
+          { name: "Min. THDV C", reg: 464, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 1.15, demoRange: 0.3 },
+          { name: "Min. THDI A", reg: 465, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 4.0, demoRange: 1.0 },
+          { name: "Min. THDI B", reg: 466, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 3.8, demoRange: 1.0 },
+          { name: "Min. THDI C", reg: 467, len: 1, type: "uint16", scale: 0.1, precision: 1, demoBase: 3.9, demoRange: 1.0 }
         ]
       },
       {
@@ -723,25 +838,28 @@ var DeviceRegistry = {
         unit: "",
         icon: "info",
         params: [
-          { name: "FW Versiyon", reg: 278, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 1.05, demoRange: 0 },
-          { name: "Model Kodu", reg: 279, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1, demoRange: 0 }
+          { name: "FW Versiyon", reg: 560, len: 1, type: "uint16", scale: 0.01, precision: 2, demoBase: 1.05, demoRange: 0 },
+          { name: "Model Kodu", reg: 561, len: 1, type: "uint16", scale: 1, precision: 0, demoBase: 1, demoRange: 0 }
         ]
       }
     ],
 
+    // REV4: V-A(30) I-A(93) V-B(156) I-B(219) V-C(282) I-C(345); her blok 1..63
     harmonics: {
       voltage: {
-        orders: [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31],
+        orders: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63],
         phases: ["A", "B", "C"],
         startReg: 30,
+        phaseStartRegs: [30, 156, 282],
         type: "uint16",
         scale: 0.1,
         unit: "%"
       },
       current: {
-        orders: [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31],
+        orders: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63],
         phases: ["A", "B", "C"],
-        startReg: 78,
+        startReg: 93,
+        phaseStartRegs: [93, 219, 345],
         type: "uint16",
         scale: 0.1,
         unit: "%"
@@ -752,126 +870,153 @@ var DeviceRegistry = {
       {
         title: "Ölçüm Ayarları",
         params: [
-          { name: "CT Oranı (CTR)", reg: 199, len: 1, type: "uint16", writable: true, min: 1, max: 5000 }
+          { name: "CT Oranı (CTR)", reg: 481, len: 1, type: "uint16", writable: true, min: 1, max: 5000 }
         ]
       },
       {
         title: "Modbus Ayarları",
         params: [
-          { name: "Baud Rate", reg: 200, len: 1, type: "uint16", writable: true,
-            options: { 0: "2400", 1: "4800", 2: "9600", 3: "19200", 4: "38400", 5: "57600", 6: "115200" } },
-          { name: "Slave Adresi", reg: 201, len: 1, type: "uint16", writable: true, min: 1, max: 247 },
-          { name: "Parity", reg: 202, len: 1, type: "uint16", writable: true,
-            options: { 0: "None", 1: "Odd", 2: "Even" } }
+          { name: "Baud Rate", reg: 482, len: 1, type: "uint16", writable: true,
+            options: { 1: "2400", 2: "4800", 3: "9600", 4: "19200", 5: "115200" } },
+          { name: "Slave Adresi", reg: 483, len: 1, type: "uint16", writable: true, min: 1, max: 247 },
+          { name: "Parity", reg: 484, len: 1, type: "uint16", writable: true,
+            options: { 0: "None", 1: "Even", 2: "Odd" } }
         ]
       },
       {
         title: "Güvenlik",
         params: [
-          { name: "Şifre", reg: 203, len: 1, type: "uint16", writable: true, min: 0, max: 9999 }
+          { name: "Şifre Aktivasyonu", reg: 485, len: 1, type: "uint16", writable: true,
+            options: { 0: "OFF", 1: "ON" } },
+          { name: "Şifre Aktivasyon Süresi", reg: 486, len: 1, type: "uint16", writable: true, min: 0, max: 9999 }
         ]
       },
       {
         title: "Alarm Limitleri - Gerilim",
         params: [
-          { name: "Gerilim A Üst Limit", reg: 218, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
-          { name: "Gerilim A Alt Limit", reg: 219, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
-          { name: "Gerilim A Histerezis", reg: 220, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 50 },
-          { name: "Gerilim A Gecikme (s)", reg: 221, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
-          { name: "Gerilim B Üst Limit", reg: 222, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
-          { name: "Gerilim B Alt Limit", reg: 223, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
-          { name: "Gerilim B Histerezis", reg: 224, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 50 },
-          { name: "Gerilim B Gecikme (s)", reg: 225, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
-          { name: "Gerilim C Üst Limit", reg: 226, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
-          { name: "Gerilim C Alt Limit", reg: 227, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
-          { name: "Gerilim C Histerezis", reg: 228, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 50 },
-          { name: "Gerilim C Gecikme (s)", reg: 229, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
+          { name: "Gerilim Üst Limit A", reg: 500, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
+          { name: "Gerilim Üst Limit B", reg: 501, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
+          { name: "Gerilim Üst Limit C", reg: 502, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
+          { name: "Gerilim Alt Limit A", reg: 503, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
+          { name: "Gerilim Alt Limit B", reg: 504, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
+          { name: "Gerilim Alt Limit C", reg: 505, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 500 },
+          { name: "Gerilim Histerezis A", reg: 506, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 50 },
+          { name: "Gerilim Histerezis B", reg: 507, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 50 },
+          { name: "Gerilim Histerezis C", reg: 508, len: 1, type: "uint16", writable: true, scale: 0.1, min: 0, max: 50 },
+          { name: "Gerilim Gecikme A (s)", reg: 509, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Gerilim Gecikme B (s)", reg: 510, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Gerilim Gecikme C (s)", reg: 511, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
         ]
       },
       {
         title: "Alarm Limitleri - Akım",
         params: [
-          { name: "Akım A Üst Limit", reg: 230, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
-          { name: "Akım A Alt Limit", reg: 231, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
-          { name: "Akım A Histerezis", reg: 232, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 500 },
-          { name: "Akım A Gecikme (s)", reg: 233, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
-          { name: "Akım B Üst Limit", reg: 234, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
-          { name: "Akım B Alt Limit", reg: 235, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
-          { name: "Akım B Histerezis", reg: 236, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 500 },
-          { name: "Akım B Gecikme (s)", reg: 237, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
-          { name: "Akım C Üst Limit", reg: 238, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
-          { name: "Akım C Alt Limit", reg: 239, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
-          { name: "Akım C Histerezis", reg: 240, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 500 },
-          { name: "Akım C Gecikme (s)", reg: 241, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
+          { name: "Akım Üst Limit A", reg: 512, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
+          { name: "Akım Üst Limit B", reg: 513, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
+          { name: "Akım Üst Limit C", reg: 514, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
+          { name: "Akım Alt Limit A", reg: 515, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
+          { name: "Akım Alt Limit B", reg: 516, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
+          { name: "Akım Alt Limit C", reg: 517, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5000 },
+          { name: "Akım Histerezis A", reg: 518, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 500 },
+          { name: "Akım Histerezis B", reg: 519, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 500 },
+          { name: "Akım Histerezis C", reg: 520, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 500 },
+          { name: "Akım Gecikme A (s)", reg: 521, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Akım Gecikme B (s)", reg: 522, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Akım Gecikme C (s)", reg: 523, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
         ]
       },
       {
         title: "Alarm Limitleri - Cos φ",
         params: [
-          { name: "Cos φ A Üst Limit", reg: 242, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
-          { name: "Cos φ A Alt Limit", reg: 243, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
-          { name: "Cos φ A Histerezis", reg: 244, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
-          { name: "Cos φ A Gecikme (s)", reg: 245, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
-          { name: "Cos φ B Üst Limit", reg: 246, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
-          { name: "Cos φ B Alt Limit", reg: 247, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
-          { name: "Cos φ B Histerezis", reg: 248, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
-          { name: "Cos φ B Gecikme (s)", reg: 249, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
-          { name: "Cos φ C Üst Limit", reg: 250, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
-          { name: "Cos φ C Alt Limit", reg: 251, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
-          { name: "Cos φ C Histerezis", reg: 252, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
-          { name: "Cos φ C Gecikme (s)", reg: 253, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
+          { name: "Cos φ Üst Limit A", reg: 524, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "Cos φ Üst Limit B", reg: 525, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "Cos φ Üst Limit C", reg: 526, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "Cos φ Alt Limit A", reg: 527, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "Cos φ Alt Limit B", reg: 528, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "Cos φ Alt Limit C", reg: 529, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "Cos φ Histerezis A", reg: 530, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
+          { name: "Cos φ Histerezis B", reg: 531, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
+          { name: "Cos φ Histerezis C", reg: 532, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
+          { name: "Cos φ Gecikme A (s)", reg: 533, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Cos φ Gecikme B (s)", reg: 534, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Cos φ Gecikme C (s)", reg: 535, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
+        ]
+      },
+      {
+        title: "Alarm Limitleri - Güç Faktörü",
+        params: [
+          { name: "PF Üst Limit A", reg: 536, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "PF Üst Limit B", reg: 537, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "PF Üst Limit C", reg: 538, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "PF Alt Limit A", reg: 539, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "PF Alt Limit B", reg: 540, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "PF Alt Limit C", reg: 541, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 1 },
+          { name: "PF Histerezis A", reg: 542, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
+          { name: "PF Histerezis B", reg: 543, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
+          { name: "PF Histerezis C", reg: 544, len: 1, type: "uint16", writable: true, scale: 0.001, min: 0, max: 0.5 },
+          { name: "PF Gecikme A (s)", reg: 545, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "PF Gecikme B (s)", reg: 546, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "PF Gecikme C (s)", reg: 547, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
         ]
       },
       {
         title: "Alarm Limitleri - Frekans",
         params: [
-          { name: "Frekans Üst Limit", reg: 266, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
-          { name: "Frekans Alt Limit", reg: 267, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
-          { name: "Frekans Histerezis", reg: 268, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5 },
-          { name: "Frekans Gecikme (s)", reg: 269, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
+          { name: "Frekans Üst Limit A", reg: 548, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
+          { name: "Frekans Üst Limit B", reg: 549, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
+          { name: "Frekans Üst Limit C", reg: 550, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
+          { name: "Frekans Alt Limit A", reg: 551, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
+          { name: "Frekans Alt Limit B", reg: 552, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
+          { name: "Frekans Alt Limit C", reg: 553, len: 1, type: "uint16", writable: true, scale: 0.01, min: 45, max: 65 },
+          { name: "Frekans Histerezis A", reg: 554, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5 },
+          { name: "Frekans Histerezis B", reg: 555, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5 },
+          { name: "Frekans Histerezis C", reg: 556, len: 1, type: "uint16", writable: true, scale: 0.01, min: 0, max: 5 },
+          { name: "Frekans Gecikme A (s)", reg: 557, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Frekans Gecikme B (s)", reg: 558, len: 1, type: "uint16", writable: true, min: 0, max: 600 },
+          { name: "Frekans Gecikme C (s)", reg: 559, len: 1, type: "uint16", writable: true, min: 0, max: 600 }
         ]
       }
     ],
 
     commands: [
-      { name: "Enerji Sayaçlarını Sıfırla", reg: 285, writeValue: 1, confirm: true },
-      { name: "Maksimum Değerleri Sıfırla", reg: 286, writeValue: 1, confirm: true },
-      { name: "Minimum Değerleri Sıfırla", reg: 287, writeValue: 1, confirm: true },
-      { name: "Demand Değerlerini Sıfırla", reg: 288, writeValue: 1, confirm: true },
-      { name: "Ayarları Sıfırla", reg: 289, writeValue: 1, confirm: true },
-      { name: "Alarm Ayarlarını Sıfırla", reg: 290, writeValue: 1, confirm: true },
-      { name: "Fabrika Ayarlarına Dön", reg: 291, writeValue: 1, confirm: true }
+      { name: "Enerji Değerlerini Sıfırla", reg: 567, writeValue: 1, confirm: true },
+      { name: "Maksimum Değerleri Sıfırla", reg: 568, writeValue: 1, confirm: true },
+      { name: "Minimum Değerleri Sıfırla", reg: 569, writeValue: 1, confirm: true },
+      { name: "Demand Değerlerini Sıfırla", reg: 570, writeValue: 1, confirm: true },
+      { name: "Ayarları Sıfırla", reg: 571, writeValue: 1, confirm: true },
+      { name: "Alarm Limitlerini Sıfırla", reg: 572, writeValue: 1, confirm: true },
+      { name: "Fabrika Ayarlarına Dön", reg: 573, writeValue: 1, confirm: true }
     ],
 
     ios: {
       relays: [
-        { name: "Röle 1", reg: 205, len: 1, type: "uint16", writable: true,
+        { name: "Röle 1", reg: 487, len: 1, type: "uint16", writable: true,
           options: { 0: "OFF", 1: "ON" } },
-        { name: "Röle 2", reg: 206, len: 1, type: "uint16", writable: true,
+        { name: "Röle 2", reg: 488, len: 1, type: "uint16", writable: true,
           options: { 0: "OFF", 1: "ON" } }
       ],
       digitalOutputs: [
-        { name: "DO1", reg: 207, len: 1, type: "uint16", writable: true,
+        { name: "DO1", reg: 489, len: 1, type: "uint16", writable: true,
           options: { 0: "OFF", 1: "ON" } },
-        { name: "DO2", reg: 208, len: 1, type: "uint16", writable: true,
+        { name: "DO2", reg: 490, len: 1, type: "uint16", writable: true,
           options: { 0: "OFF", 1: "ON" } },
-        { name: "DO3", reg: 209, len: 1, type: "uint16", writable: true,
+        { name: "DO3", reg: 491, len: 1, type: "uint16", writable: true,
           options: { 0: "OFF", 1: "ON" } },
-        { name: "DO4", reg: 210, len: 1, type: "uint16", writable: true,
+        { name: "DO4", reg: 492, len: 1, type: "uint16", writable: true,
           options: { 0: "OFF", 1: "ON" } }
       ],
       digitalInputs: [
-        { name: "DI1", reg: 211, len: 1, type: "uint16" },
-        { name: "DI2", reg: 212, len: 1, type: "uint16" },
-        { name: "DI3", reg: 213, len: 1, type: "uint16" },
-        { name: "DI4", reg: 214, len: 1, type: "uint16" }
+        { name: "DI1", reg: 493, len: 1, type: "uint16" },
+        { name: "DI2", reg: 494, len: 1, type: "uint16" },
+        { name: "DI3", reg: 495, len: 1, type: "uint16" },
+        { name: "DI4", reg: 496, len: 1, type: "uint16" }
       ],
       analogInputs: [
-        { name: "AI1", reg: 215, len: 1, type: "uint16", unit: "V", scale: 0.01 },
-        { name: "AI2", reg: 216, len: 1, type: "uint16", unit: "V", scale: 0.01 }
+        { name: "AI1", reg: 497, len: 1, type: "uint16", unit: "V", scale: 0.01 },
+        { name: "AI2", reg: 498, len: 1, type: "uint16", unit: "V", scale: 0.01 }
       ],
       analogOutputs: [
-        { name: "DAC", reg: 217, len: 1, type: "uint16", writable: true,
+        { name: "DAC", reg: 499, len: 1, type: "uint16", writable: true,
           min: 0, max: 255, unit: "V", formula: "4.6 * value / 256" }
       ]
     }

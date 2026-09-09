@@ -4,7 +4,9 @@
   var STORAGE_KEY = 'gb_selected_device';
   var demoInterval = null;
   var demoRunning = false;
+  var liveActive = false;
   var currentDeviceId = null;
+  var paused = false;
 
   function initDashboard() {
     renderDeviceSelector();
@@ -12,6 +14,14 @@
     if (saved && (getDeviceById(saved) || saved === 'manual')) {
       document.getElementById('device-select').value = saved;
       onDeviceSelected(saved);
+    }
+    if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
+      window.LiveModbus.addConnectionListener(function() {
+        if (currentDeviceId && currentDeviceId !== 'manual') {
+          syncLiveOrDemo();
+        }
+        updateLiveBadge();
+      });
     }
   }
 
@@ -42,13 +52,15 @@
   }
 
   function onDeviceSelected(deviceId) {
-    stopDemo();
+    stopAllData();
+    paused = false;
     currentDeviceId = deviceId;
     var container = document.getElementById('dashboard-content');
     if (!container) return;
 
     if (!deviceId) {
       container.innerHTML = '<p class="text-gray-400 text-center mt-8 text-sm">Lütfen bir enerji analizör modeli seçin.</p>';
+      updateLiveBadge();
       return;
     }
 
@@ -56,6 +68,7 @@
 
     if (deviceId === 'manual') {
       renderManualDashboard(container);
+      updateLiveBadge();
       return;
     }
 
@@ -66,14 +79,41 @@
     }
 
     renderDeviceDashboard(container, device, deviceId);
-    startDemo(deviceId);
+    syncLiveOrDemo();
+    updateLiveBadge();
+  }
+
+  function isDashboardPageActive() {
+    var page = document.getElementById('page-dashboard');
+    return page && page.classList.contains('active');
+  }
+
+  function syncLiveOrDemo() {
+    if (!currentDeviceId || currentDeviceId === 'manual') return;
+    if (paused) return;
+    if (!isDashboardPageActive()) return;
+
+    stopAllData();
+    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
+    if (ble) {
+      startLive(currentDeviceId);
+    } else {
+      startDemo(currentDeviceId);
+    }
+    updateLiveBadge();
+  }
+
+  function stopAllData() {
+    stopDemo();
+    stopLive();
   }
 
   function renderDeviceDashboard(container, device, deviceId) {
     var html = '';
 
     html += '<div class="flex items-center justify-between mb-3">';
-    html += '<div class="text-sm text-gray-500">' + device.name + ' <span class="text-gray-400">|</span> ' + device.phases + ' Faz <span class="text-gray-400">|</span> Fn: 0x' + device.modbusFunction.toString(16).padStart(2, '0').toUpperCase() + '</div>';
+    html += '<div class="text-sm text-gray-500">' + device.name + ' <span class="text-gray-400">|</span> ' + device.phases + ' Faz <span class="text-gray-400">|</span> Fn: 0x' + device.modbusFunction.toString(16).padStart(2, '0').toUpperCase();
+    html += ' <span id="dash-mode-badge" class="ml-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">—</span></div>';
     html += '<button id="demo-toggle" class="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors">Duraklat</button>';
     html += '</div>';
 
@@ -106,15 +146,18 @@
     var toggleBtn = document.getElementById('demo-toggle');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', function() {
-        if (demoRunning) {
-          stopDemo();
+        if (!paused && (demoRunning || liveActive)) {
+          paused = true;
+          stopAllData();
           this.textContent = 'Başlat';
           this.className = 'text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700 border-none cursor-pointer hover:bg-blue-200 transition-colors';
         } else {
-          startDemo(currentDeviceId);
+          paused = false;
+          syncLiveOrDemo();
           this.textContent = 'Duraklat';
           this.className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors';
         }
+        updateModeBadge();
       });
     }
 
@@ -130,12 +173,46 @@
         }
       });
     });
+
+    updateModeBadge();
+  }
+
+  function updateModeBadge() {
+    var badge = document.getElementById('dash-mode-badge');
+    if (!badge) return;
+    if (paused) {
+      badge.textContent = 'Duraklatıldı';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500';
+    } else if (liveActive) {
+      badge.textContent = 'Canlı';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700';
+    } else if (demoRunning) {
+      badge.textContent = 'Demo';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+    } else {
+      badge.textContent = '—';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500';
+    }
+  }
+
+  function updateLiveBadge() {
+    var demoBadge = document.getElementById('header-demo-badge');
+    var ble = window.LiveModbus && window.LiveModbus.isBleConnected();
+    if (demoBadge) {
+      if (ble && currentDeviceId && currentDeviceId !== 'manual') {
+        demoBadge.classList.add('hidden');
+      } else if (!ble) {
+        demoBadge.classList.remove('hidden');
+      }
+    }
+    updateModeBadge();
   }
 
   function renderManualDashboard(container) {
     var html = '';
     html += '<div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">';
     html += '<h3 class="text-sm font-semibold text-gray-700 mb-3">Manuel Modbus Okuyucu</h3>';
+    html += '<p class="text-xs text-gray-500 mb-3">Canlı okuma için üstteki <strong>Manuel Modbus</strong> sekmesini kullanın (BLE bağlantısı gerekir).</p>';
     html += '<div class="flex flex-col gap-2.5">';
 
     html += '<div class="flex items-center gap-2"><label class="text-xs text-gray-500 w-20">Slave</label>';
@@ -177,9 +254,70 @@
     });
   }
 
+  function collectGroupParams(device) {
+    var params = [];
+    device.groups.forEach(function(group) {
+      group.params.forEach(function(param) {
+        params.push(param);
+      });
+    });
+    return params;
+  }
+
+  function applyValuesToUi(deviceId, device, values) {
+    device.groups.forEach(function(group) {
+      group.params.forEach(function(param) {
+        var el = document.getElementById('p_' + param.reg);
+        if (!el) return;
+        var val = values[param.reg];
+        if (val === undefined || val === null || isNaN(val)) return;
+        var prec = param.precision != null ? param.precision : 2;
+        el.textContent = Number(val).toFixed(prec);
+        if (typeof window.pushDemoData === 'function') {
+          window.pushDemoData(deviceId + ':' + param.reg, val);
+        }
+      });
+    });
+  }
+
+  function startLive(deviceId) {
+    var device = getDeviceById(deviceId);
+    if (!device || !window.LiveModbus) return;
+    liveActive = true;
+    updateModeBadge();
+    window.LiveModbus.startLivePoll({
+      owner: 'dashboard',
+      intervalMs: 2000,
+      getDeviceDef: function() { return getDeviceById(currentDeviceId); },
+      getParams: function() {
+        var d = getDeviceById(currentDeviceId);
+        return d ? collectGroupParams(d) : [];
+      },
+      onValues: function(values) {
+        var d = getDeviceById(currentDeviceId);
+        if (d) applyValuesToUi(currentDeviceId, d, values);
+      },
+      onError: function(e) {
+        if (typeof logMsg === 'function') logMsg('Dashboard canlı okuma: ' + (e.message || e));
+        else if (window.logMsg) window.logMsg('Dashboard canlı okuma: ' + (e.message || e));
+      },
+      onDisconnected: function() {
+        liveActive = false;
+        if (!paused && currentDeviceId && currentDeviceId !== 'manual') startDemo(currentDeviceId);
+        updateLiveBadge();
+      }
+    });
+  }
+
+  function stopLive() {
+    liveActive = false;
+    if (window.LiveModbus) window.LiveModbus.stopLivePoll('dashboard');
+  }
+
   function startDemo(deviceId) {
     if (demoInterval) clearInterval(demoInterval);
     demoRunning = true;
+    liveActive = false;
     var device = getDeviceById(deviceId);
     if (!device) return;
 
@@ -187,6 +325,7 @@
     demoInterval = setInterval(function() {
       updateDemoValues(device);
     }, 1000);
+    updateModeBadge();
   }
 
   function stopDemo() {
@@ -232,6 +371,14 @@
 
   window.initDashboard = initDashboard;
   window.getCurrentDeviceId = function() { return currentDeviceId; };
+  window.startDashboardLiveIfConnected = function() {
+    if (paused) return;
+    if (!currentDeviceId || currentDeviceId === 'manual') return;
+    syncLiveOrDemo();
+  };
+  window.stopDashboardLive = function() {
+    stopAllData();
+  };
 
   document.addEventListener('DOMContentLoaded', function() {
     initDashboard();
