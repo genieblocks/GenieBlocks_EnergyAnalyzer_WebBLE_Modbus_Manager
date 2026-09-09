@@ -276,6 +276,7 @@ async function reset() {
  */
 async function clickConnect() {
   if (device && device.gatt && device.gatt.connected) {
+    await teardownModbusResponseNotify();
     await disconnect();
     toggleUIConnected(false);
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
@@ -290,6 +291,7 @@ async function clickConnect() {
   butConnect.textContent = 'Bağlanıyor...';
   try {
     await connect();
+    await setupModbusResponseNotify();
     toggleUIConnected(true);
     logMsg('Bluetooth cihazları başarıyla bulundu ve bağlanıldı.');
     try {
@@ -299,6 +301,7 @@ async function clickConnect() {
       logMsg('Bağlantı kuruldu fakat cihazdan veri okunamadı: ' + e);
     }
   } catch (e) {
+    await teardownModbusResponseNotify();
     logMsg('Bluetooth cihazı bulunamadı veya bağlantı reddedildi.');
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) {
@@ -322,6 +325,7 @@ async function onDisconnected(event) {
 
   destroyPanels();
 
+  await teardownModbusResponseNotify();
   toggleUIConnected(false);
   logMsg('Cihaz ile bağlantı KOPTU! Lütfen tekrar bağlanın.');
 
@@ -1096,19 +1100,151 @@ function estimateModbusWaitMs(packet) {
 /** BLE Query/Response tek kanallı — istekleri sıraya al. */
 let modbusRequestChain = Promise.resolve();
 
+/** Response notify state (BLE cevap bekleyicileri; LiveModbus heldRegs ile karıştırma). */
+let modbusResponseChar = null;
+let modbusNotifyReady = false;
+let awaitingByTransId = Object.create(null);
+let modbusNotifyHandler = null;
+
+function copyModbusDataView(value) {
+  const data = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  const copy = new Uint8Array(data);
+  return new DataView(copy.buffer);
+}
+
+function onModbusResponseNotify(event) {
+  try {
+    const view = copyModbusDataView(event.target.value);
+    const parsed = parseModbusResponse(view);
+    const waiter = awaitingByTransId[parsed.transId];
+    if (waiter && typeof waiter.resolve === 'function') {
+      waiter.resolve(parsed);
+    }
+  } catch (e) {
+    /* ignore malformed notify */
+  }
+}
+
 /**
- * Query karakteristiğine yazar, bekleyip Response karakteristiğinden okur.
+ * Response (a40c) üzerinde Notify kur. Başarısızsa sleep+read fallback kullanılır.
+ */
+async function setupModbusResponseNotify() {
+  await teardownModbusResponseNotify();
+  if (!device || !device.gatt || !device.gatt.connected) return false;
+  try {
+    const service = await device.gatt.getPrimaryService(MODBUS_SERVICE_UUID);
+    const responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+    modbusNotifyHandler = onModbusResponseNotify;
+    responseChar.addEventListener('characteristicvaluechanged', modbusNotifyHandler);
+    await responseChar.startNotifications();
+    modbusResponseChar = responseChar;
+    modbusNotifyReady = true;
+    logMsg('Modbus Response notify aktif.');
+    return true;
+  } catch (e) {
+    modbusResponseChar = null;
+    modbusNotifyReady = false;
+    modbusNotifyHandler = null;
+    logMsg('Modbus Response notify açılamadı (sleep+read): ' + e);
+    return false;
+  }
+}
+
+/**
+ * Notify dinleyicisini kapat; bekleyen istekleri timeout ile çöz.
+ */
+async function teardownModbusResponseNotify() {
+  const pending = awaitingByTransId;
+  awaitingByTransId = Object.create(null);
+  Object.keys(pending).forEach(function(tid) {
+    const w = pending[tid];
+    if (w && typeof w.resolve === 'function') {
+      w.resolve({ transId: parseInt(tid, 10) & 0xff, status: 0xE2 });
+    }
+  });
+
+  if (modbusResponseChar && modbusNotifyHandler) {
+    try {
+      modbusResponseChar.removeEventListener('characteristicvaluechanged', modbusNotifyHandler);
+    } catch (e) { /* ignore */ }
+    try {
+      if (device && device.gatt && device.gatt.connected) {
+        await modbusResponseChar.stopNotifications();
+      }
+    } catch (e) { /* ignore */ }
+  }
+  modbusResponseChar = null;
+  modbusNotifyReady = false;
+  modbusNotifyHandler = null;
+}
+
+/**
+ * Query yazar; Notify varsa cevap gelince resolve, yoksa sleep+read.
  */
 async function sendModbusRequest(packet) {
   const run = async () => {
     const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
     const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
     const queryChar = await service.getCharacteristic(MODBUS_QUERY_CHAR_UUID);
-    const responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+    let responseChar = modbusResponseChar;
+    if (!responseChar) {
+      responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+    }
+
+    if (!modbusNotifyReady) {
+      try {
+        if (!modbusResponseChar) {
+          await setupModbusResponseNotify();
+        }
+      } catch (e) { /* fallback below */ }
+      responseChar = modbusResponseChar || responseChar;
+    }
+
+    if (modbusNotifyReady && modbusResponseChar) {
+      const transId = packet[0] & 0xff;
+      const timeoutMs = estimateModbusWaitMs(packet);
+      let settled = false;
+
+      const responsePromise = new Promise(function(resolve) {
+        const timer = setTimeout(async function() {
+          if (settled) return;
+          try {
+            const value = await modbusResponseChar.readValue();
+            const parsed = parseModbusResponse(copyModbusDataView(value));
+            if (!settled && parsed.transId === transId) {
+              settled = true;
+              delete awaitingByTransId[transId];
+              clearTimeout(timer);
+              resolve(parsed);
+              return;
+            }
+          } catch (e) { /* ignore read fallback errors */ }
+          if (!settled) {
+            settled = true;
+            delete awaitingByTransId[transId];
+            resolve({ transId: transId, status: 0xE2 });
+          }
+        }, timeoutMs);
+
+        awaitingByTransId[transId] = {
+          resolve: function(parsed) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            delete awaitingByTransId[transId];
+            resolve(parsed);
+          }
+        };
+      });
+
+      await queryChar.writeValue(packet);
+      return responsePromise;
+    }
+
     await queryChar.writeValue(packet);
     await sleep(estimateModbusWaitMs(packet));
     const value = await responseChar.readValue();
-    return parseModbusResponse(value);
+    return parseModbusResponse(copyModbusDataView(value));
   };
   const resultPromise = modbusRequestChain.then(run, run);
   modbusRequestChain = resultPromise.then(function() {}, function() {});

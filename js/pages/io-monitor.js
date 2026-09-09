@@ -364,6 +364,10 @@
         if (this.disabled) return;
         var reg = parseInt(this.dataset.reg, 10);
         var raw = parseInt(this.value, 10);
+        ioDemoState['reg_' + reg] = raw;
+        if (window.LiveModbus && window.LiveModbus.holdRegister) {
+          window.LiveModbus.holdRegister(reg, raw, 3000);
+        }
         var ao = (ios.analogOutputs || []).find(function(a) { return a.reg === reg; });
         if (ao) updateDacLabel(ao, raw);
       });

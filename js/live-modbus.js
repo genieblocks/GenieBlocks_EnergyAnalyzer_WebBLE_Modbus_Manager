@@ -9,6 +9,63 @@
   var activeOwner = null;
   var demoModeListeners = [];
   var connectionListeners = [];
+  /** UI hold: yazılan reg’leri stale poll ezmesin. BLE awaitingByTransId ile karıştırma. */
+  var heldRegs = Object.create(null);
+  var DEFAULT_HOLD_MS = 2500;
+  var WRITE_GRACE_MS = 2000;
+
+  /**
+   * Register’ı poll onValues’tan tut.
+   * @param {number} reg
+   * @param {*=} value
+   * @param {number=} ms
+   */
+  function holdRegister(reg, value, ms) {
+    var holdMs = ms != null ? ms : DEFAULT_HOLD_MS;
+    heldRegs[reg] = { value: value, until: Date.now() + holdMs };
+  }
+
+  function holdRegisters(startAddr, values, ms) {
+    var arr = Array.isArray(values) ? values : [values];
+    for (var i = 0; i < arr.length; i++) {
+      holdRegister(startAddr + i, arr[i], ms);
+    }
+  }
+
+  function clearHeldRegister(reg) {
+    delete heldRegs[reg];
+  }
+
+  function clearHeldRange(startAddr, qty) {
+    for (var i = 0; i < qty; i++) clearHeldRegister(startAddr + i);
+  }
+
+  function clearAllHeldRegs() {
+    heldRegs = Object.create(null);
+  }
+
+  /** Pending / süresi dolmamış reg’leri values map’inden çıkar. */
+  function filterValuesAgainstHeld(values) {
+    if (!values) return values;
+    var now = Date.now();
+    var out = {};
+    for (var key in values) {
+      if (!Object.prototype.hasOwnProperty.call(values, key)) continue;
+      var reg = Number(key);
+      var hold = heldRegs[reg];
+      if (hold) {
+        if (hold.until > now) continue;
+        delete heldRegs[reg];
+      }
+      out[reg] = values[key];
+    }
+    return out;
+  }
+
+  function isWritePending(reg) {
+    var hold = heldRegs[reg];
+    return !!(hold && hold.until > Date.now());
+  }
 
   function isBleConnected() {
     if (typeof window.isBleConnected === 'function') return window.isBleConnected();
@@ -210,26 +267,36 @@
     var qty = valuesArr.length;
     if (qty < 1 || qty > 64) throw new Error('Geçersiz yazma adedi');
 
+    var committed = false;
+    holdRegisters(startAddr, valuesArr, DEFAULT_HOLD_MS);
+
     async function tryWrite(func) {
       var packet = window.buildModbusQueryPacket(cfg.slave, func, startAddr, qty, valuesArr);
       if (!packet) throw new Error('Yazma paketi oluşturulamadı');
       return window.sendModbusRequest(packet);
     }
 
-    var res;
-    if (qty === 1) {
-      res = await tryWrite(0x10);
-      if (res.status === 0x01) {
-        res = await tryWrite(0x06);
+    try {
+      var res;
+      if (qty === 1) {
+        res = await tryWrite(0x10);
+        if (res.status === 0x01) {
+          res = await tryWrite(0x06);
+        }
+      } else {
+        res = await tryWrite(0x10);
       }
-    } else {
-      res = await tryWrite(0x10);
+      if (res.status !== 0) {
+        var msg = typeof window.statusCodeToText === 'function' ? window.statusCodeToText(res.status) : ('status ' + res.status);
+        throw new Error(msg);
+      }
+      holdRegisters(startAddr, valuesArr, WRITE_GRACE_MS);
+      committed = true;
+      return res;
+    } catch (e) {
+      if (!committed) clearHeldRange(startAddr, qty);
+      throw e;
     }
-    if (res.status !== 0) {
-      var msg = typeof window.statusCodeToText === 'function' ? window.statusCodeToText(res.status) : ('status ' + res.status);
-      throw new Error(msg);
-    }
-    return res;
   }
 
   function encodeParamRaw(param, displayValue) {
@@ -252,6 +319,7 @@
     }
     pollBusy = false;
     activeOwner = null;
+    clearAllHeldRegs();
   }
 
   /**
@@ -282,7 +350,9 @@
         var params = opts.getParams() || [];
         if (deviceDef && params.length) {
           var values = await readParams(deviceDef, params);
-          if (myToken === pollToken) opts.onValues(values, params);
+          if (myToken === pollToken) {
+            opts.onValues(filterValuesAgainstHeld(values), params);
+          }
         }
       } catch (e) {
         if (typeof opts.onError === 'function') opts.onError(e);
@@ -320,12 +390,16 @@
     readRawRegs: readRawRegs,
     writeRegisters: writeRegisters,
     encodeParamRaw: encodeParamRaw,
+    holdRegister: holdRegister,
+    isWritePending: isWritePending,
+    clearAllHeldRegs: clearAllHeldRegs,
     startLivePoll: startLivePoll,
     stopLivePoll: stopLivePoll,
     addConnectionListener: addConnectionListener
   };
 
   window.onBleConnectionChange = function(connected) {
+    if (!connected) clearAllHeldRegs();
     updateHeaderModeBadge();
     connectionListeners.forEach(function(fn) {
       try { fn(!!connected); } catch (e) { /* ignore */ }
