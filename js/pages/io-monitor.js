@@ -113,7 +113,7 @@
         var el = document.getElementById('io-di-' + di.reg);
         if (!el || values[di.reg] === undefined) return;
         var on = Number(values[di.reg]) === 1;
-        el.className = 'inline-block w-4 h-4 rounded-full border border-gray-300 ' + (on ? 'bg-green-500' : 'bg-gray-300');
+        el.className = 'inline-block w-4 h-4 rounded-full border border-gray-300 ' + (on ? 'bg-ok' : 'bg-gray-300');
         el.title = on ? 'ON' : 'OFF';
       });
     }
@@ -227,8 +227,8 @@
       badge.className + '">' + badge.label + '</span></div>';
 
     if (ios.digitalInputs && ios.digitalInputs.length) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Dijital Girişler</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">Dijital Girişler</div>';
       html += '<div class="flex flex-wrap gap-3">';
       ios.digitalInputs.forEach(function(di) {
         var on = false;
@@ -243,15 +243,15 @@
         html += '<div class="flex items-center gap-2">';
         html += '<span class="text-sm text-gray-600">' + di.name + '</span>';
         html += '<span id="io-di-' + di.reg + '" class="inline-block w-4 h-4 rounded-full border border-gray-300 ' +
-          (on ? 'bg-green-500' : 'bg-gray-300') + '" title="' + title + '"></span>';
+          (on ? 'bg-ok' : 'bg-gray-300') + '" title="' + title + '"></span>';
         html += '</div>';
       });
       html += '</div></div>';
     }
 
     if (ios.relays && ios.relays.length) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Röleler</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">Röleler</div>';
       html += '<div class="grid grid-cols-2 gap-3">';
       ios.relays.forEach(function(r) {
         var key = 'reg_' + r.reg;
@@ -264,8 +264,8 @@
     }
 
     if (ios.digitalOutputs && ios.digitalOutputs.length) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Dijital Çıkışlar</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">Dijital Çıkışlar</div>';
       html += '<div class="grid grid-cols-2 gap-3">';
       ios.digitalOutputs.forEach(function(do_) {
         var key = 'reg_' + do_.reg;
@@ -278,8 +278,8 @@
     }
 
     if (ios.analogInputs && ios.analogInputs.length) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Analog Girişler</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">Analog Girişler</div>';
       html += '<div class="grid gap-3">';
       ios.analogInputs.forEach(function(ai, idx) {
         var unit = ai.unit || '';
@@ -296,7 +296,7 @@
         html += '<div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">';
         html += '<div class="flex items-center justify-between mb-1.5">';
         html += '<span class="text-sm text-gray-600">' + ai.name + '</span>';
-        html += '<span class="text-lg font-mono font-semibold text-gray-800" id="io-ai-val-' + idx + '">' + display + '</span>';
+        html += '<span class="param-value text-lg" id="io-ai-val-' + idx + '">' + display + '</span>';
         html += '</div>';
         html += '<div class="h-2 rounded-full bg-gray-200 overflow-hidden">';
         html += '<div id="io-ai-bar-' + idx + '" class="h-full rounded-full bg-brand transition-all duration-300" style="width:' + pct.toFixed(1) + '%"></div>';
@@ -311,8 +311,8 @@
     }
 
     if (ios.analogOutputs && ios.analogOutputs.length) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Analog Çıkış (DAC)</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">Analog Çıkış (DAC)</div>';
       ios.analogOutputs.forEach(function(ao) {
         var key = 'reg_' + ao.reg;
         var raw = 0;

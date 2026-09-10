@@ -29,9 +29,9 @@
     html += '<div class="flex-1"></div>';
     var badge = (window.LiveModbus && window.LiveModbus.getModeBadge)
       ? window.LiveModbus.getModeBadge()
-      : { label: '—', className: 'bg-gray-100 text-gray-500' };
+      : { label: '—', className: 'badge-off' };
     html += '<span id="charts-mode-badge" class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
-    html += '<button id="add-chart-btn" class="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors">+ Veri Ekle</button>';
+    html += '<button id="add-chart-btn" class="text-xs px-3 py-1 rounded-full badge-live border-none cursor-pointer hover:bg-emerald-100 transition-colors">+ Veri Ekle</button>';
     html += '<button id="clear-all-charts" class="text-xs px-3 py-1 rounded-full bg-red-50 text-red-600 border-none cursor-pointer hover:bg-red-100 transition-colors">Temizle</button>';
     html += '</div>';
 
@@ -137,7 +137,7 @@
 
     var wrapper = document.createElement('div');
     wrapper.id = 'chart-wrap-' + paramKey.replace(/[:.]/g, '_');
-    wrapper.className = 'bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-2.5';
+    wrapper.className = 'surface-card p-3 mb-2.5';
 
     var headerHtml = '<div class="flex items-center justify-between mb-1">';
     headerHtml += '<span class="text-xs font-semibold text-gray-700">' + label;
@@ -166,7 +166,7 @@
       tooltip: { trigger: 'axis', textStyle: { fontSize: 11 } },
       xAxis: { type: 'time', axisLabel: { fontSize: 10 }, splitLine: { show: false } },
       yAxis: { type: 'value', name: unit, nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }, scale: true },
-      series: [{ type: 'line', smooth: false, showSymbol: false, data: [], lineStyle: { width: 1.5, color: '#00a7e9' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,167,233,0.12)' }, { offset: 1, color: 'rgba(0,167,233,0)' }] } } }],
+      series: [{ type: 'line', smooth: false, showSymbol: false, data: [], lineStyle: { width: 1.5, color: '#0096D6' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,150,214,0.12)' }, { offset: 1, color: 'rgba(0,150,214,0)' }] } } }],
       animation: false
     };
     chart.setOption(option);

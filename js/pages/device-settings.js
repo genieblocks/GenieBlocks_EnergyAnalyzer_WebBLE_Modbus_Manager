@@ -40,8 +40,8 @@
     html += '</div>';
 
     device.settings.forEach(function(group, gi) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">' + group.title + '</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">' + group.title + '</div>';
 
       group.params.forEach(function(param) {
         var inputId = 'ds_' + param.reg.toString(16);
@@ -80,8 +80,8 @@
     });
 
     if (device.commands && device.commands.length) {
-      html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm mb-3">';
-      html += '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Komutlar</div>';
+      html += '<div class="surface-card p-3 mb-3">';
+      html += '<div class="section-label mb-3">Komutlar</div>';
       html += '<p class="text-xs text-gray-500 mb-3">Sıfırlama ve tek seferlik yazma komutları. Onay gerektiren işlemlerde önce onay istenir.</p>';
       html += '<div class="flex flex-wrap gap-2">';
       device.commands.forEach(function(cmd, ci) {

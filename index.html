@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.19">
+<html lang="en" data-version="v1.0.20">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -11,7 +11,12 @@
         theme: {
           extend: {
             colors: {
-              brand: { DEFAULT: '#00a7e9', dark: '#008dc3', light: '#b3e2f7' },
+              brand: { DEFAULT: '#0096D6', dark: '#007AAD', light: '#B8E0F2' },
+              ok: { DEFAULT: '#0F9F6E', soft: '#ECFDF5', text: '#047857' },
+              warn: { DEFAULT: '#D97706', soft: '#FFFBEB', text: '#B45309' },
+              danger: { DEFAULT: '#DC2626', soft: '#FEF2F2', text: '#B91C1C' },
+              surface: { DEFAULT: '#F3F5F7', card: '#FFFFFF' },
+              ink: { DEFAULT: '#1A2332', muted: '#6B7785', faint: '#9AA3AF' },
             },
             fontFamily: {
               sans: ["'Segoe UI'", 'Arial', 'sans-serif'],
@@ -27,7 +32,7 @@
                sm:flex-row sm:items-center sm:gap-2 sm:mb-0;
       }
       .form-row label {
-        @apply font-medium text-sm sm:text-base sm:min-w-[90px];
+        @apply font-medium text-sm sm:text-base sm:min-w-[90px] text-ink-muted;
       }
       .form-row input,
       .form-row select {
@@ -39,19 +44,37 @@
                transition-colors cursor-pointer border-none;
       }
       .btn-secondary {
-        @apply bg-gray-100 text-gray-800 rounded-full px-4 py-1.5 text-sm
-               cursor-pointer hover:bg-green-100 transition-colors border-none;
+        @apply bg-gray-100 text-ink rounded-full px-4 py-1.5 text-sm
+               cursor-pointer hover:bg-gray-200 transition-colors border-none;
       }
       .btn-action {
         @apply px-4 py-1.5 rounded-full bg-brand text-white font-medium
                hover:bg-brand-dark disabled:bg-brand-light disabled:cursor-not-allowed
                transition-colors cursor-pointer text-sm border-none;
       }
+      .surface-card {
+        @apply bg-surface-card border border-gray-200 rounded-xl;
+      }
+      .param-value {
+        @apply text-base font-mono font-semibold text-ink tracking-tight whitespace-nowrap;
+      }
+      .section-label {
+        @apply text-xs font-semibold text-ink-muted uppercase tracking-wide;
+      }
+      .badge-live {
+        @apply bg-ok-soft text-ok-text;
+      }
+      .badge-demo {
+        @apply bg-warn-soft text-warn-text;
+      }
+      .badge-off {
+        @apply bg-gray-100 text-ink-faint;
+      }
       .status.connected {
-        @apply bg-green-100 text-green-700;
+        @apply bg-ok-soft text-ok-text;
       }
       .status.disconnected {
-        @apply bg-red-100 text-red-600;
+        @apply bg-danger-soft text-danger-text;
       }
       .tab-modern.active {
         @apply !text-brand !border-brand !font-bold;
@@ -63,13 +86,13 @@
         @apply mb-1 py-0.5;
       }
       .log-entry.info {
-        @apply text-gray-600;
+        @apply text-ink-muted;
       }
       .log-entry.success {
-        @apply text-green-600 font-medium;
+        @apply text-ok font-medium;
       }
       .log-entry.error {
-        @apply text-red-600 font-medium;
+        @apply text-danger font-medium;
       }
       .mm-regs {
         @apply break-all;
@@ -85,11 +108,11 @@
       }
       #bottom-nav {
         @apply fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200
-               flex justify-around items-center h-14 shadow-[0_-2px_8px_rgba(0,0,0,0.06)];
+               flex justify-around items-center h-14;
       }
       .nav-btn {
         @apply flex flex-col items-center justify-center gap-0.5 flex-1 h-full
-               text-gray-400 bg-transparent border-none cursor-pointer transition-colors text-xs;
+               text-ink-faint bg-transparent border-none cursor-pointer transition-colors text-xs;
       }
       .nav-btn.active {
         @apply text-brand;
@@ -100,10 +123,10 @@
       .io-toggle {
         @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-0 p-0.5
                transition-colors duration-200 ease-out cursor-pointer align-middle;
-        background-color: #d1d5db;
+        background-color: #D1D5DB;
       }
       .io-toggle[aria-checked="true"] {
-        background-color: #00a7e9;
+        background-color: #0F9F6E;
       }
       .io-toggle:disabled {
         @apply opacity-50 cursor-not-allowed;
@@ -125,39 +148,39 @@
       }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-    <script src="js/device-registry.js?v=1.0.19" defer></script>
-    <script src="js/pages/dashboard.js?v=1.0.19" defer></script>
-    <script src="js/pages/charts.js?v=1.0.19" defer></script>
-    <script src="js/pages/harmonics.js?v=1.0.19" defer></script>
-    <script src="js/pages/device-settings.js?v=1.0.19" defer></script>
-    <script src="js/pages/io-monitor.js?v=1.0.19" defer></script>
-    <script src="js/router.js?v=1.0.19" defer></script>
-    <script type="module" src="js/script.js?v=1.0.19" defer></script>
-    <script src="js/live-modbus.js?v=1.0.19" defer></script>
+    <script src="js/device-registry.js?v=1.0.20" defer></script>
+    <script src="js/pages/dashboard.js?v=1.0.20" defer></script>
+    <script src="js/pages/charts.js?v=1.0.20" defer></script>
+    <script src="js/pages/harmonics.js?v=1.0.20" defer></script>
+    <script src="js/pages/device-settings.js?v=1.0.20" defer></script>
+    <script src="js/pages/io-monitor.js?v=1.0.20" defer></script>
+    <script src="js/router.js?v=1.0.20" defer></script>
+    <script type="module" src="js/script.js?v=1.0.20" defer></script>
+    <script src="js/live-modbus.js?v=1.0.20" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
   </head>
-  <body class="bg-gray-50 text-gray-800 m-0 pb-16">
+  <body class="bg-surface text-ink m-0 pb-16">
 
     <div id="notSupported" style="display:none;">
-      <div class="flex items-start bg-amber-50 text-amber-700 border border-amber-200 rounded-lg p-3 sm:p-4 mx-2 sm:mx-auto my-2 sm:my-4 max-w-[98vw] sm:max-w-lg shadow-sm text-sm sm:text-base">
+      <div class="flex items-start bg-warn-soft text-warn-text border border-amber-200 rounded-lg p-3 sm:p-4 mx-2 sm:mx-auto my-2 sm:my-4 max-w-[98vw] sm:max-w-lg text-sm sm:text-base">
         <span class="text-xl sm:text-2xl mr-2 sm:mr-4 mt-0.5 shrink-0">&#9888;</span>
         <div class="flex-1">
           <strong>Bu tarayıcı Web Bluetooth API desteği sunmuyor.</strong><br>
           Lütfen Bluetooth ile cihaz konfigürasyonu yapmak için <b>Google Chrome</b> veya Web Bluetooth destekleyen bir tarayıcı kullanın.<br>
-          <span class="text-xs sm:text-sm text-gray-500">(Mobilde: Chrome, Android WebView veya Samsung Internet; Masaüstünde: Chrome, Edge, Opera)</span>
+          <span class="text-xs sm:text-sm text-ink-muted">(Mobilde: Chrome, Android WebView veya Samsung Internet; Masaüstünde: Chrome, Edge, Opera)</span>
         </div>
       </div>
     </div>
 
-    <header class="app-header flex flex-col gap-1.5 px-3 py-2 sm:py-3 bg-white border-b-2 border-brand text-left">
+    <header class="app-header flex flex-col gap-1.5 px-3 py-2 sm:py-3 bg-white border-b border-gray-200 text-left">
       <div class="flex items-center justify-between gap-2 min-w-0">
-        <h1 class="text-sm sm:text-lg font-semibold text-brand m-0 leading-tight truncate text-left">Enerji Analizörü</h1>
-        <button id="butConnect" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand-dark disabled:bg-brand-light disabled:cursor-not-allowed transition-colors cursor-pointer border-none whitespace-nowrap shrink-0">Bağlan</button>
+        <h1 class="text-sm sm:text-lg font-semibold text-ink m-0 leading-tight truncate text-left">Enerji Analizörü</h1>
+        <button id="butConnect" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand-dark disabled:bg-brand-light disabled:cursor-not-allowed transition-colors cursor-pointer border-none whitespace-nowrap shrink-0">Cihaza Bağlan</button>
       </div>
       <div class="flex items-center gap-2 min-w-0">
-        <span id="header-device-name" class="text-xs text-gray-400 truncate text-left min-w-0">Cihaz seçilmedi</span>
+        <span id="header-device-name" class="text-xs text-ink-faint truncate text-left min-w-0">Cihaz seçilmedi</span>
         <span id="connection-status" class="status disconnected text-xs font-medium px-2.5 py-1 rounded-full transition-colors whitespace-nowrap shrink-0 ml-auto">Bağlı Değil</span>
       </div>
     </header>
@@ -460,6 +483,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.19</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.20</div>
   </body>
 </html>

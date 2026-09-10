@@ -108,12 +108,12 @@
   /** Sayfa badge’leri için ortak etiket. */
   function getModeBadge() {
     if (shouldUseLive()) {
-      return { label: 'Canlı', className: 'bg-green-100 text-green-700' };
+      return { label: 'Canlı', className: 'badge-live' };
     }
     if (shouldUseDemo()) {
-      return { label: 'Demo', className: 'bg-amber-100 text-amber-700' };
+      return { label: 'Demo', className: 'badge-demo' };
     }
-    return { label: 'Kapalı', className: 'bg-gray-100 text-gray-500' };
+    return { label: 'Kapalı', className: 'badge-off' };
   }
 
   /** Cihaza yazma: sadece canlı modda (demo zorla = yerel). */

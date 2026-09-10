@@ -100,7 +100,7 @@
     var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
     var badge = (window.LiveModbus && window.LiveModbus.getModeBadge)
       ? window.LiveModbus.getModeBadge()
-      : { label: useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı'), className: useLive ? 'bg-green-100 text-green-700' : (useDemo ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500') };
+      : { label: useLive ? 'Canlı' : (useDemo ? 'Demo' : 'Kapalı'), className: useLive ? 'badge-live' : (useDemo ? 'badge-demo' : 'badge-off') };
     var html = '';
 
     html += '<div class="flex items-center gap-2 mb-3 flex-wrap">';
@@ -129,7 +129,7 @@
     html += '<span class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
     html += '</div>';
 
-    html += '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">';
+    html += '<div class="surface-card p-3">';
     html += '<div id="harm-chart" style="width:100%;height:320px;"></div>';
     html += '</div>';
 
@@ -289,9 +289,9 @@
         data: data,
         itemStyle: {
           color: function(params) {
-            if (params.value > 5) return '#ef4444';
-            if (params.value > 3) return '#f59e0b';
-            return '#00a7e9';
+            if (params.value > 5) return '#DC2626';
+            if (params.value > 3) return '#D97706';
+            return '#0096D6';
           },
           borderRadius: [2, 2, 0, 0]
         },
@@ -307,16 +307,16 @@
     var maxItem = nonFundamental.reduce(function(best, item) { return item.value > best.value ? item : best; }, { order: 0, value: -Infinity });
 
     var statsHtml = '';
-    statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
+    statsHtml += '<div class="surface-card rounded-lg p-2">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">THD</div>';
     statsHtml += '<div class="text-lg font-bold text-gray-800">' + thd.toFixed(1) + '%</div>';
     statsHtml += '</div>';
-    statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
+    statsHtml += '<div class="surface-card rounded-lg p-2">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">En Yüksek</div>';
     statsHtml += '<div class="text-lg font-bold text-red-600">' + (maxItem.value > -Infinity ? maxItem.value.toFixed(1) : '—') + '%</div>';
     statsHtml += '<div class="text-xs text-gray-400">' + (maxItem.order || '—') + '. harmonik</div>';
     statsHtml += '</div>';
-    statsHtml += '<div class="bg-white border border-gray-200 rounded-lg p-2 shadow-sm">';
+    statsHtml += '<div class="surface-card rounded-lg p-2">';
     statsHtml += '<div class="text-xs text-gray-400 uppercase">Toplam</div>';
     statsHtml += '<div class="text-lg font-bold text-gray-800">' + nonFundamental.length + '</div>';
     statsHtml += '<div class="text-xs text-gray-400">harmonik bileşen</div>';

@@ -12,7 +12,7 @@
 let device;
 
 const bufferSize = 64;
-const colors = ['#00a7e9', '#f89521', '#be1e2d'];
+const colors = ['#0096D6', '#f89521', '#be1e2d'];
 const measurementPeriodId = '0001';
 
 const maxLogLength = 500;
@@ -1671,7 +1671,7 @@ function showUpdateModal(msg) {
   modal.innerHTML = `
     <div style="background:#fff;padding:32px 24px;border-radius:12px;box-shadow:0 2px 12px #0002;text-align:center;">
       <div style="font-size:1.2em;margin-bottom:18px;">${msg}</div>
-      <button id="update-ok" style="padding:8px 24px;font-size:1em;border-radius:8px;background:#00a7e9;color:#fff;border:none;cursor:pointer;">Tamam</button>
+      <button id="update-ok" style="padding:8px 24px;font-size:1em;border-radius:8px;background:#0096D6;color:#fff;border:none;cursor:pointer;">Tamam</button>
     </div>
   `;
   document.body.appendChild(modal);

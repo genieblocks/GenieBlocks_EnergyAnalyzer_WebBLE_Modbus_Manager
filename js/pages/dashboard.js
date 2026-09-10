@@ -135,18 +135,18 @@
 
     html += '<div class="flex items-center justify-between mb-3">';
     html += '<div class="text-sm text-gray-500">' + device.name + ' <span class="text-gray-400">|</span> ' + device.phases + ' Faz <span class="text-gray-400">|</span> Fn: 0x' + device.modbusFunction.toString(16).padStart(2, '0').toUpperCase();
-    html += ' <span id="dash-mode-badge" class="ml-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">—</span></div>';
-    html += '<button id="demo-toggle" class="text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors">Duraklat</button>';
+    html += ' <span id="dash-mode-badge" class="ml-1 text-xs px-2 py-0.5 rounded-full badge-off">—</span></div>';
+    html += '<button id="demo-toggle" class="text-xs px-3 py-1 rounded-full badge-live border-none cursor-pointer hover:bg-emerald-100 transition-colors">Duraklat</button>';
     html += '</div>';
 
     html += '<div class="grid grid-cols-2 gap-2.5" id="cards-grid">';
     device.groups.forEach(function(group, gi) {
-      html += '<div class="value-card bg-white border border-gray-200 rounded-xl p-3 shadow-sm">';
+      html += '<div class="value-card surface-card p-3">';
       html += '<div class="flex items-center justify-between mb-2">';
-      html += '<span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">' + group.title;
-      if (group.unit) html += ' <span class="text-gray-400 normal-case">(' + group.unit + ')</span>';
+      html += '<span class="section-label">' + group.title;
+      if (group.unit) html += ' <span class="text-ink-faint normal-case font-normal">(' + group.unit + ')</span>';
       html += '</span>';
-      html += '<button class="chart-btn w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-brand-light text-gray-400 hover:text-brand border-none cursor-pointer transition-colors" data-device="' + deviceId + '" data-group="' + gi + '" title="Canlı grafik">';
+      html += '<button class="chart-btn w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-brand-light text-ink-faint hover:text-brand border-none cursor-pointer transition-colors" data-device="' + deviceId + '" data-group="' + gi + '" title="Canlı grafik">';
       html += '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 10 14 10 12 16 8 4 6 10 2 10"/></svg>';
       html += '</button>';
       html += '</div>';
@@ -154,8 +154,8 @@
       group.params.forEach(function(param) {
         var paramKey = 'p_' + param.reg;
         html += '<div class="flex justify-between items-baseline py-0.5">';
-        html += '<span class="text-xs text-gray-500 truncate mr-1">' + param.name + '</span>';
-        html += '<span class="param-value text-sm font-mono font-semibold text-gray-800 whitespace-nowrap" id="' + paramKey + '">—</span>';
+        html += '<span class="text-xs text-ink-muted truncate mr-1">' + param.name + '</span>';
+        html += '<span class="param-value" id="' + paramKey + '">—</span>';
         html += '</div>';
       });
 
@@ -172,12 +172,12 @@
           paused = true;
           stopAllData();
           this.textContent = 'Başlat';
-          this.className = 'text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700 border-none cursor-pointer hover:bg-blue-200 transition-colors';
+          this.className = 'text-xs px-3 py-1 rounded-full bg-brand-light text-brand-dark border-none cursor-pointer hover:bg-brand-light transition-colors';
         } else {
           paused = false;
           syncLiveOrDemo();
           this.textContent = 'Duraklat';
-          this.className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 border-none cursor-pointer hover:bg-green-200 transition-colors';
+          this.className = 'text-xs px-3 py-1 rounded-full badge-live border-none cursor-pointer hover:bg-emerald-100 transition-colors';
         }
         updateModeBadge();
       });
@@ -204,16 +204,16 @@
     if (!badge) return;
     if (paused) {
       badge.textContent = 'Duraklatıldı';
-      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full badge-off';
     } else if (liveActive) {
       badge.textContent = 'Canlı';
-      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full badge-live';
     } else if (demoRunning) {
       badge.textContent = 'Demo';
-      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full badge-demo';
     } else {
       badge.textContent = '—';
-      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500';
+      badge.className = 'ml-1 text-xs px-2 py-0.5 rounded-full badge-off';
     }
   }
 
@@ -223,7 +223,7 @@
 
   function renderManualDashboard(container) {
     var html = '';
-    html += '<div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">';
+    html += '<div class="surface-card p-4">';
     html += '<h3 class="text-sm font-semibold text-gray-700 mb-3">Manuel Modbus Okuyucu</h3>';
     html += '<p class="text-xs text-gray-500 mb-3">Canlı okuma için üstteki <strong>Manuel Modbus</strong> sekmesini kullanın (BLE bağlantısı gerekir).</p>';
     html += '<div class="flex flex-col gap-2.5">';
@@ -262,8 +262,8 @@
         rows += '<span class="text-sm font-mono font-semibold text-gray-800">' + val + ' <span class="text-gray-400">(0x' + val.toString(16).toUpperCase().padStart(4, '0') + ')</span></span>';
         rows += '</div>';
       }
-      resultDiv.innerHTML = '<div class="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">' +
-        '<div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Demo Sonuç</div>' + rows + '</div>';
+      resultDiv.innerHTML = '<div class="surface-card p-3">' +
+        '<div class="section-label mb-2">Demo Sonuç</div>' + rows + '</div>';
     });
   }
 
