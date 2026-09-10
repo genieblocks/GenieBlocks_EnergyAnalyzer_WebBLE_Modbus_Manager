@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.20">
+<html lang="en" data-version="v1.0.21">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -141,6 +141,38 @@
       .io-toggle[aria-checked="true"] .io-toggle-thumb {
         transform: translateX(1.25rem);
       }
+      .io-dac-slider {
+        @apply flex-1 h-2 rounded-full appearance-none cursor-pointer outline-none;
+        background: #E5E7EB;
+      }
+      .io-dac-slider:disabled {
+        @apply opacity-50 cursor-not-allowed;
+      }
+      .io-dac-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 9999px;
+        background: #0096D6;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 3px rgba(26, 35, 50, 0.25);
+        cursor: pointer;
+      }
+      .io-dac-slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 9999px;
+        background: #0096D6;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 3px rgba(26, 35, 50, 0.25);
+        cursor: pointer;
+      }
+      .io-dac-slider::-moz-range-track {
+        height: 8px;
+        border-radius: 9999px;
+        background: transparent;
+      }
       header.app-header,
       header.app-header h1,
       header.app-header #header-device-name {
@@ -148,15 +180,15 @@
       }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-    <script src="js/device-registry.js?v=1.0.20" defer></script>
-    <script src="js/pages/dashboard.js?v=1.0.20" defer></script>
-    <script src="js/pages/charts.js?v=1.0.20" defer></script>
-    <script src="js/pages/harmonics.js?v=1.0.20" defer></script>
-    <script src="js/pages/device-settings.js?v=1.0.20" defer></script>
-    <script src="js/pages/io-monitor.js?v=1.0.20" defer></script>
-    <script src="js/router.js?v=1.0.20" defer></script>
-    <script type="module" src="js/script.js?v=1.0.20" defer></script>
-    <script src="js/live-modbus.js?v=1.0.20" defer></script>
+    <script src="js/device-registry.js?v=1.0.21" defer></script>
+    <script src="js/pages/dashboard.js?v=1.0.21" defer></script>
+    <script src="js/pages/charts.js?v=1.0.21" defer></script>
+    <script src="js/pages/harmonics.js?v=1.0.21" defer></script>
+    <script src="js/pages/device-settings.js?v=1.0.21" defer></script>
+    <script src="js/pages/io-monitor.js?v=1.0.21" defer></script>
+    <script src="js/router.js?v=1.0.21" defer></script>
+    <script type="module" src="js/script.js?v=1.0.21" defer></script>
+    <script src="js/live-modbus.js?v=1.0.21" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
@@ -483,6 +515,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.20</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.21</div>
   </body>
 </html>

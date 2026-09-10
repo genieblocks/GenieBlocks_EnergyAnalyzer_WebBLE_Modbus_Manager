@@ -145,6 +145,7 @@
         if (slider) {
           slider.value = raw;
           slider.disabled = false;
+          updateDacSliderFill(slider);
         }
         updateDacLabel(ao, raw);
       });
@@ -179,6 +180,18 @@
       '<span class="text-sm text-gray-600 truncate">' + name + '</span>' +
       renderSwitchHtml(reg, name, state, interactive) +
       '</div>';
+  }
+
+  function updateDacSliderFill(slider) {
+    if (!slider) return;
+    var min = parseFloat(slider.min);
+    var max = parseFloat(slider.max);
+    if (!isFinite(min) || !isFinite(max) || max <= min) { min = 0; max = 255; }
+    var pct = ((parseFloat(slider.value) - min) / (max - min)) * 100;
+    if (!isFinite(pct)) pct = 0;
+    pct = Math.max(0, Math.min(100, pct));
+    slider.style.background =
+      'linear-gradient(to right, #0096D6 0%, #0096D6 ' + pct + '%, #E5E7EB ' + pct + '%, #E5E7EB 100%)';
   }
 
   function updateDacLabel(ao, raw) {
@@ -330,7 +343,7 @@
         }
         html += '<div class="flex items-center gap-3">';
         html += '<span class="text-sm text-gray-600 shrink-0">' + ao.name + '</span>';
-        html += '<input type="range" min="' + min + '" max="' + max + '" value="' + raw + '" class="io-dac-slider flex-1 h-2 rounded-full appearance-none bg-gray-200" data-reg="' + ao.reg + '" data-formula="' + (ao.formula || '').replace(/"/g, '&quot;') + '" data-unit="' + (ao.unit || 'V') + '"' +
+        html += '<input type="range" min="' + min + '" max="' + max + '" value="' + raw + '" class="io-dac-slider" data-reg="' + ao.reg + '" data-formula="' + (ao.formula || '').replace(/"/g, '&quot;') + '" data-unit="' + (ao.unit || 'V') + '"' +
           (interactive ? '' : ' disabled') + '>';
         html += '<span class="io-dac-value text-sm font-mono font-semibold w-16 text-right" data-reg="' + ao.reg + '">' +
           (flags.useDemo || flags.useLive ? (Number(volt).toFixed(2) + ' ' + (ao.unit || 'V')) : '—') + '</span>';
@@ -374,11 +387,13 @@
     });
 
     container.querySelectorAll('.io-dac-slider').forEach(function(slider) {
+      updateDacSliderFill(slider);
       slider.addEventListener('change', async function() {
         if (this.disabled) return;
         var reg = parseInt(this.dataset.reg, 10);
         var raw = parseInt(this.value, 10);
         ioDemoState['reg_' + reg] = raw;
+        updateDacSliderFill(this);
         var ao = (ios.analogOutputs || []).find(function(a) { return a.reg === reg; });
         if (ao) updateDacLabel(ao, raw);
         if (window.LiveModbus && window.LiveModbus.canWriteDevice()) {
@@ -394,6 +409,7 @@
         var reg = parseInt(this.dataset.reg, 10);
         var raw = parseInt(this.value, 10);
         ioDemoState['reg_' + reg] = raw;
+        updateDacSliderFill(this);
         if (window.LiveModbus && window.LiveModbus.holdRegister) {
           window.LiveModbus.holdRegister(reg, raw, 3000);
         }
