@@ -298,7 +298,7 @@ async function clickConnect() {
     logMsg('Bluetooth cihazları başarıyla bulundu ve bağlanıldı.');
     try {
       // LoRaWAN okuma devre dışı – sadece Modbus okunuyor
-      await readModbusAll();
+      await readGatewayModbusSettings();
     } catch (e) {
       logMsg('Bağlantı kuruldu fakat cihazdan veri okunamadı: ' + e);
     }
@@ -411,6 +411,9 @@ function toggleUIConnected(connected) {
     }
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) input.disabled = false;
+    });
+    document.querySelectorAll('#tab-modbus input').forEach(input => {
+      input.disabled = false;
     });
     const writeBtn = document.getElementById('write_all');
     if (writeBtn) writeBtn.disabled = false;
@@ -913,33 +916,109 @@ async function readValue(type) {
   }
 }
 
+function utf8BytesLimited(str, maxLen, label) {
+  const bytes = new TextEncoder().encode(str);
+  if (bytes.length === 0) throw label + ' boş olamaz.';
+  if (bytes.length > maxLen) throw label + ' en fazla ' + maxLen + ' byte olabilir.';
+  return bytes;
+}
+
+function uint16LeBytes(n) {
+  const buf = new Uint8Array(2);
+  new DataView(buf.buffer).setUint16(0, n & 0xffff, true);
+  return buf;
+}
+
+function hexToBytes(hex, expectedLen, label) {
+  if (hex.length !== expectedLen * 2) {
+    throw label + ' ' + expectedLen + ' byte (' + (expectedLen * 2) + ' hex karakter) olmalı.';
+  }
+  const buffer = new Uint8Array(expectedLen);
+  for (let i = 0; i < expectedLen; i++) {
+    buffer[i] = parseInt(hex.substr(i * 2, 2), 16);
+    if (Number.isNaN(buffer[i])) throw label + ' geçersiz hex.';
+  }
+  return buffer;
+}
+
+/**
+ * Gateway’in RS-485 hat ayarlarını BLE GATT’a yazar (a401–a40a).
+ * Bu, slave’e Modbus RTU isteği göndermez; yalnızca ESP üzerindeki yapılandırmayı günceller.
+ */
+async function writeGatewayModbusSettings() {
+  if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+  const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
+
+  const getVal = (id) => {
+    const el = document.getElementById(id);
+    if (!el) throw id + ' bulunamadı.';
+    return String(el.value).trim();
+  };
+
+  const addr = parseInt(getVal('mb_addr'), 10);
+  if (!(addr >= 1 && addr <= 247)) throw 'Addr 1–247 olmalı.';
+  const parity = parseInt(getVal('mb_parity'), 10);
+  if (!(parity >= 0 && parity <= 2)) throw 'Parity 0–2 olmalı.';
+  const stopbits = parseInt(getVal('mb_stopbits'), 10);
+  if (!(stopbits >= 1 && stopbits <= 2)) throw 'StopBits 1–2 olmalı.';
+  const databits = parseInt(getVal('mb_databits'), 10);
+  if (!(databits >= 7 && databits <= 8)) throw 'DataBits 7–8 olmalı.';
+  const func = parseInt(getVal('mb_func'), 10);
+  if (!(func >= 1 && func <= 6)) throw 'Func 1–6 olmalı.';
+  const regstart = parseInt(getVal('mb_regstart'), 10);
+  if (!(regstart >= 0 && regstart <= 65535)) throw 'Reg Start 0–65535 olmalı.';
+  const reglen = parseInt(getVal('mb_reglen'), 10);
+  if (!(reglen >= 1 && reglen <= 125)) throw 'Reg Len 1–125 olmalı.';
+
+  const writes = [
+    { uuid: MB_ADDR_UUID, data: Uint8Array.of(addr & 0xff) },
+    { uuid: MB_BAUD_UUID, data: utf8BytesLimited(getVal('mb_baud'), 6, 'Baud') },
+    { uuid: MB_PARITY_UUID, data: Uint8Array.of(parity & 0xff) },
+    { uuid: MB_STOPBITS_UUID, data: Uint8Array.of(stopbits & 0xff) },
+    { uuid: MB_DATABITS_UUID, data: Uint8Array.of(databits & 0xff) },
+    { uuid: MB_TIMEOUT_UUID, data: utf8BytesLimited(getVal('mb_timeout'), 8, 'Timeout') },
+    { uuid: MB_POLLING_UUID, data: utf8BytesLimited(getVal('mb_polling'), 8, 'Polling') },
+    { uuid: MB_FUNC_UUID, data: Uint8Array.of(func & 0xff) },
+    { uuid: MB_REGSTART_UUID, data: uint16LeBytes(regstart) },
+    { uuid: MB_REGLEN_UUID, data: uint16LeBytes(reglen) }
+  ];
+
+  for (const w of writes) {
+    const ch = await service.getCharacteristic(w.uuid);
+    await ch.writeValue(w.data);
+  }
+  logMsg('Gateway Modbus hat ayarları BLE üzerinden yazıldı (RS-485 trafiği yok).');
+}
+
+async function writeLoRaWANKeysIfFilled() {
+  const lorawanBtn = document.querySelector('.tab-modern[data-tab="lorawan"]');
+  const tabVisible = lorawanBtn && getComputedStyle(lorawanBtn).display !== 'none';
+  if (!tabVisible) return false;
+
+  const deveui = document.getElementById('device_eui')?.value.trim() || '';
+  const appeui = document.getElementById('app_eui')?.value.trim() || '';
+  const appkey = document.getElementById('app_key')?.value.trim() || '';
+  if (!deveui && !appeui && !appkey) return false;
+  if (!(deveui.length === 16 && appeui.length === 16 && appkey.length === 32)) {
+    throw 'LoRaWAN alanları doluysa Device EUI 16, APP EUI 16, APP Key 32 hex karakter olmalı.';
+  }
+
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+  const service = await server.getPrimaryService(LORAWAN_SERVICE_UUID);
+  await (await service.getCharacteristic(DEVEUI_CHAR_UUID)).writeValue(hexToBytes(deveui, 8, 'Device EUI'));
+  await (await service.getCharacteristic(APPEUI_CHAR_UUID)).writeValue(hexToBytes(appeui, 8, 'APP EUI'));
+  await (await service.getCharacteristic(APPKEY_CHAR_UUID)).writeValue(hexToBytes(appkey, 16, 'APP Key'));
+  logMsg('LoRaWAN anahtarları cihaza yazıldı.');
+  return true;
+}
+
 async function writeAll() {
   try {
     if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
-    const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
-    const service = await server.getPrimaryService(LORAWAN_SERVICE_UUID);
-    // Device EUI
-    let value = document.getElementById('device_eui').value.trim();
-    if (value.length !== 16) throw 'Device EUI 8 byte (16 hex karakter) olmalı.';
-    let buffer = new Uint8Array(8);
-    for (let i = 0; i < 8; i++) buffer[i] = parseInt(value.substr(i*2,2),16);
-    let char1 = await service.getCharacteristic(DEVEUI_CHAR_UUID);
-    await char1.writeValue(buffer);
-    // APP EUI
-    value = document.getElementById('app_eui').value.trim();
-    if (value.length !== 16) throw 'APP EUI 8 byte (16 hex karakter) olmalı.';
-    buffer = new Uint8Array(8);
-    for (let i = 0; i < 8; i++) buffer[i] = parseInt(value.substr(i*2,2),16);
-    let char2 = await service.getCharacteristic(APPEUI_CHAR_UUID);
-    await char2.writeValue(buffer);
-    // APP Key
-    value = document.getElementById('app_key').value.trim();
-    if (value.length !== 32) throw 'APP Key 16 byte (32 hex karakter) olmalı.';
-    buffer = new Uint8Array(16);
-    for (let i = 0; i < 16; i++) buffer[i] = parseInt(value.substr(i*2,2),16);
-    let char3 = await service.getCharacteristic(APPKEY_CHAR_UUID);
-    await char3.writeValue(buffer);
-    logMsg('Tüm ayarlar başarıyla cihaza yazıldı.');
+    await writeGatewayModbusSettings();
+    await writeLoRaWANKeysIfFilled();
+    logMsg('Ayarlar yazıldı. Kalıcı kayıt için «Cihazı Yeniden Başlat» (Commit) kullanın.');
   } catch (e) {
     logMsg('Ayarlar yazılamadı: ' + e);
   }
@@ -995,8 +1074,11 @@ const MODBUS_SUBSCRIBE_CHAR_UUID = window.MODBUS_SUBSCRIBE_CHAR_UUID;
 const MODBUS_STREAM_CHAR_UUID = window.MODBUS_STREAM_CHAR_UUID;
 const MODBUS_BULKWRITE_CHAR_UUID = window.MODBUS_BULKWRITE_CHAR_UUID;
 
-// Modbus gateway GATT ayarlarını oku (a401–a40a) — paralel, tek UI güncellemesi
-async function readModbusAll() {
+/**
+ * Gateway’in RS-485 hat ayarlarını BLE GATT’tan okur (a401–a40a).
+ * Query/Subscribe/Stream değildir; slave register okumaz.
+ */
+async function readGatewayModbusSettings() {
   try {
     const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
     const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
@@ -1025,7 +1107,7 @@ async function readModbusAll() {
       if (el) el.value = r.value;
     });
   } catch (e) {
-    logMsg('Modbus verileri okunamadı: ' + e);
+    logMsg('Gateway Modbus hat ayarları okunamadı: ' + e);
   }
 }
 
@@ -1896,7 +1978,7 @@ async function readLoRaWANAll() {
 }
 
 // clickConnect fonksiyonunda LoRaWAN okuma işlemlerinden sonra:
-// await readModbusAll();
+// await readGatewayModbusSettings();
 
 document.addEventListener('DOMContentLoaded', () => {
   const deviceEui = document.getElementById('device_eui');
@@ -1966,11 +2048,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (readBtn) {
     readBtn.addEventListener('click', async () => {
       try {
-        // LoRaWAN okuma devre dışı – sadece Modbus
-        await readModbusAll();
-        logMsg('Cihazdan veriler tekrar okundu ve alanlar güncellendi.');
+        // BLE GATT hat ayarları — RS-485 Modbus okuması değil
+        await readGatewayModbusSettings();
+        logMsg('Gateway Modbus hat ayarları BLE üzerinden okundu.');
       } catch (e) {
-        logMsg('Cihazdan veri okuma sırasında hata: ' + e);
+        logMsg('Gateway hat ayarları okunamadı: ' + e);
       }
     });
   }
@@ -2093,33 +2175,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Yaz butonuna basıldığında inputlarda eksik karakter varsa uyarı göster
+// Yaz: öncelik Modbus gateway GATT; LoRaWAN sekmesi açıksa ve alanlar doluysa anahtarlar da yazılır
 const writeAllBtn = document.getElementById('write_all');
 if (writeAllBtn) {
   writeAllBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    const ide = document.getElementById('device_eui');
-    const iae = document.getElementById('app_eui');
-    const iak = document.getElementById('app_key');
-    let valid = true;
-    let msg = '';
-    if (!ide.value || ide.value.length !== 16) {
-      valid = false;
-      msg += 'Device EUI alanı tam 16 karakter olmalı.\n';
-    }
-    if (!iae.value || iae.value.length !== 16) {
-      valid = false;
-      msg += 'APP EUI alanı tam 16 karakter olmalı.\n';
-    }
-    if (!iak.value || iak.value.length !== 32) {
-      valid = false;
-      msg += 'APP KEY alanı tam 32 karakter olmalı.';
-    }
-    if (!valid) {
-      alert(msg);
-      return;
-    }
-    // Bluetooth üzerinden gerekli bilgileri gönder
     writeAll();
   });
 }
