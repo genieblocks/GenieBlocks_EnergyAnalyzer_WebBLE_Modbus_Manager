@@ -276,7 +276,7 @@ async function reset() {
  */
 async function clickConnect() {
   if (device && device.gatt && device.gatt.connected) {
-    await teardownModbusResponseNotify();
+    await teardownAllModbusBle();
     await disconnect();
     toggleUIConnected(false);
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
@@ -291,7 +291,9 @@ async function clickConnect() {
   butConnect.textContent = 'Bağlanıyor...';
   try {
     await connect();
+    clearModbusGattCache();
     await setupModbusResponseNotify();
+    await setupModbusStreamNotify();
     toggleUIConnected(true);
     logMsg('Bluetooth cihazları başarıyla bulundu ve bağlanıldı.');
     try {
@@ -301,7 +303,7 @@ async function clickConnect() {
       logMsg('Bağlantı kuruldu fakat cihazdan veri okunamadı: ' + e);
     }
   } catch (e) {
-    await teardownModbusResponseNotify();
+    await teardownAllModbusBle();
     logMsg('Bluetooth cihazı bulunamadı veya bağlantı reddedildi.');
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) {
@@ -325,7 +327,7 @@ async function onDisconnected(event) {
 
   destroyPanels();
 
-  await teardownModbusResponseNotify();
+  await teardownAllModbusBle();
   toggleUIConnected(false);
   logMsg('Cihaz ile bağlantı KOPTU! Lütfen tekrar bağlanın.');
 
@@ -971,7 +973,25 @@ function defineModbusUUIDs() {
   window.MB_REGLEN_UUID   = '0000a40a-0000-1000-8000-00805f9b34fb';
   window.MODBUS_QUERY_CHAR_UUID  = '0000a40b-0000-1000-8000-00805f9b34fb';
   window.MODBUS_RESPONSE_CHAR_UUID = '0000a40c-0000-1000-8000-00805f9b34fb';
+  window.MODBUS_SUBSCRIBE_CHAR_UUID = '0000a40d-0000-1000-8000-00805f9b34fb';
+  window.MODBUS_STREAM_CHAR_UUID    = '0000a40e-0000-1000-8000-00805f9b34fb';
 }
+// type=module: window.* otomatik lexical binding oluşturmaz
+const MODBUS_SERVICE_UUID = window.MODBUS_SERVICE_UUID;
+const MB_ADDR_UUID = window.MB_ADDR_UUID;
+const MB_BAUD_UUID = window.MB_BAUD_UUID;
+const MB_PARITY_UUID = window.MB_PARITY_UUID;
+const MB_STOPBITS_UUID = window.MB_STOPBITS_UUID;
+const MB_DATABITS_UUID = window.MB_DATABITS_UUID;
+const MB_TIMEOUT_UUID = window.MB_TIMEOUT_UUID;
+const MB_POLLING_UUID = window.MB_POLLING_UUID;
+const MB_FUNC_UUID = window.MB_FUNC_UUID;
+const MB_REGSTART_UUID = window.MB_REGSTART_UUID;
+const MB_REGLEN_UUID = window.MB_REGLEN_UUID;
+const MODBUS_QUERY_CHAR_UUID = window.MODBUS_QUERY_CHAR_UUID;
+const MODBUS_RESPONSE_CHAR_UUID = window.MODBUS_RESPONSE_CHAR_UUID;
+const MODBUS_SUBSCRIBE_CHAR_UUID = window.MODBUS_SUBSCRIBE_CHAR_UUID;
+const MODBUS_STREAM_CHAR_UUID = window.MODBUS_STREAM_CHAR_UUID;
 
 // Modbus karakteristiklerini oku
 async function readModbusAll() {
@@ -1103,6 +1123,52 @@ let modbusNotifyReady = false;
 let awaitingByTransId = Object.create(null);
 let modbusNotifyHandler = null;
 
+/** GATT handle cache — her istekte getPrimaryService/getCharacteristic tekrarını azalt. */
+let modbusGattCache = {
+  service: null,
+  queryChar: null,
+  responseChar: null,
+  subscribeChar: null,
+  streamChar: null
+};
+
+/** Subscribe / Stream state */
+let modbusStreamSupport = null; // null=unknown, true/false
+let modbusStreamChar = null;
+let modbusStreamNotifyReady = false;
+let modbusStreamHandler = null;
+let modbusStreamListeners = [];
+let modbusActiveSubEpoch = -1;
+let modbusStreamChunkBuf = null; // { epoch, seq, chunkCount, chunks: (Uint8Array|null)[], received }
+
+function clearModbusGattCache() {
+  modbusGattCache = {
+    service: null,
+    queryChar: null,
+    responseChar: null,
+    subscribeChar: null,
+    streamChar: null
+  };
+  modbusStreamSupport = null;
+}
+
+async function getModbusServiceCached() {
+  if (!device || !device.gatt) throw new Error('Bluetooth cihazı yok');
+  const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+  if (modbusGattCache.service) return modbusGattCache.service;
+  const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
+  modbusGattCache.service = service;
+  return service;
+}
+
+async function getModbusCharCached(key, uuid) {
+  if (modbusGattCache[key]) return modbusGattCache[key];
+  const service = await getModbusServiceCached();
+  const ch = await service.getCharacteristic(uuid);
+  modbusGattCache[key] = ch;
+  return ch;
+}
+
 function copyModbusDataView(value) {
   const data = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   const copy = new Uint8Array(data);
@@ -1129,8 +1195,7 @@ async function setupModbusResponseNotify() {
   await teardownModbusResponseNotify();
   if (!device || !device.gatt || !device.gatt.connected) return false;
   try {
-    const service = await device.gatt.getPrimaryService(MODBUS_SERVICE_UUID);
-    const responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+    const responseChar = await getModbusCharCached('responseChar', MODBUS_RESPONSE_CHAR_UUID);
     modbusNotifyHandler = onModbusResponseNotify;
     responseChar.addEventListener('characteristicvaluechanged', modbusNotifyHandler);
     await responseChar.startNotifications();
@@ -1175,17 +1240,259 @@ async function teardownModbusResponseNotify() {
   modbusNotifyHandler = null;
 }
 
+function emitModbusStreamEvent(evt) {
+  modbusStreamListeners.forEach(function(fn) {
+    try { fn(evt); } catch (e) { /* ignore listener errors */ }
+  });
+}
+
+function resetModbusStreamChunkBuf() {
+  modbusStreamChunkBuf = null;
+}
+
+function onModbusStreamNotify(event) {
+  try {
+    const view = copyModbusDataView(event.target.value);
+    if (view.byteLength < 5) return;
+    const subEpoch = view.getUint8(0);
+    const seq = view.getUint8(1);
+    const chunkIndex = view.getUint8(2);
+    const chunkCount = view.getUint8(3);
+    const status = view.getUint8(4);
+
+    if (modbusActiveSubEpoch >= 0 && subEpoch !== (modbusActiveSubEpoch & 0xff)) {
+      return; // stale epoch
+    }
+
+    if (status !== 0) {
+      resetModbusStreamChunkBuf();
+      emitModbusStreamEvent({
+        type: 'error',
+        subEpoch: subEpoch,
+        seq: seq,
+        status: status,
+        message: typeof statusCodeToText === 'function' ? statusCodeToText(status) : ('status 0x' + status.toString(16))
+      });
+      return;
+    }
+
+    if (chunkCount < 1 || chunkIndex >= chunkCount) return;
+
+    const payload = new Uint8Array(view.buffer, view.byteOffset + 5, view.byteLength - 5);
+
+    if (!modbusStreamChunkBuf ||
+        modbusStreamChunkBuf.epoch !== subEpoch ||
+        modbusStreamChunkBuf.seq !== seq ||
+        modbusStreamChunkBuf.chunkCount !== chunkCount) {
+      modbusStreamChunkBuf = {
+        epoch: subEpoch,
+        seq: seq,
+        chunkCount: chunkCount,
+        chunks: new Array(chunkCount),
+        received: 0
+      };
+    }
+
+    if (!modbusStreamChunkBuf.chunks[chunkIndex]) {
+      modbusStreamChunkBuf.chunks[chunkIndex] = payload;
+      modbusStreamChunkBuf.received++;
+    }
+
+    if (modbusStreamChunkBuf.received < chunkCount) return;
+
+    let totalLen = 0;
+    for (let i = 0; i < chunkCount; i++) {
+      if (!modbusStreamChunkBuf.chunks[i]) {
+        resetModbusStreamChunkBuf();
+        return;
+      }
+      totalLen += modbusStreamChunkBuf.chunks[i].length;
+    }
+    const merged = new Uint8Array(totalLen);
+    let off = 0;
+    for (let i = 0; i < chunkCount; i++) {
+      merged.set(modbusStreamChunkBuf.chunks[i], off);
+      off += modbusStreamChunkBuf.chunks[i].length;
+    }
+    resetModbusStreamChunkBuf();
+
+    const registers = [];
+    const dv = new DataView(merged.buffer, merged.byteOffset, merged.byteLength);
+    for (let i = 0; i + 1 < merged.byteLength; i += 2) {
+      registers.push(dv.getUint16(i, false)); // big-endian
+    }
+
+    emitModbusStreamEvent({
+      type: 'snapshot',
+      subEpoch: subEpoch,
+      seq: seq,
+      status: 0,
+      registers: registers
+    });
+  } catch (e) {
+    /* ignore malformed stream notify */
+  }
+}
+
+/**
+ * Stream (a40e) üzerinde Notify kur.
+ */
+async function setupModbusStreamNotify() {
+  await teardownModbusStreamNotify();
+  if (!device || !device.gatt || !device.gatt.connected) return false;
+  try {
+    const streamChar = await getModbusCharCached('streamChar', MODBUS_STREAM_CHAR_UUID);
+    modbusStreamHandler = onModbusStreamNotify;
+    streamChar.addEventListener('characteristicvaluechanged', modbusStreamHandler);
+    await streamChar.startNotifications();
+    modbusStreamChar = streamChar;
+    modbusStreamNotifyReady = true;
+    modbusStreamSupport = true;
+    logMsg('Modbus Stream notify aktif.');
+    return true;
+  } catch (e) {
+    modbusStreamChar = null;
+    modbusStreamNotifyReady = false;
+    modbusStreamHandler = null;
+    if (modbusStreamSupport !== true) modbusStreamSupport = false;
+    logMsg('Modbus Stream notify açılamadı (Query fallback): ' + e);
+    return false;
+  }
+}
+
+async function teardownModbusStreamNotify() {
+  resetModbusStreamChunkBuf();
+  modbusActiveSubEpoch = -1;
+  if (modbusStreamChar && modbusStreamHandler) {
+    try {
+      modbusStreamChar.removeEventListener('characteristicvaluechanged', modbusStreamHandler);
+    } catch (e) { /* ignore */ }
+    try {
+      if (device && device.gatt && device.gatt.connected) {
+        await modbusStreamChar.stopNotifications();
+      }
+    } catch (e) { /* ignore */ }
+  }
+  modbusStreamChar = null;
+  modbusStreamNotifyReady = false;
+  modbusStreamHandler = null;
+}
+
+/**
+ * Subscribe/Stream destekleniyor mu? Sonucu cache’ler.
+ */
+async function probeModbusStreamSupport() {
+  if (modbusStreamSupport === true || modbusStreamSupport === false) return modbusStreamSupport;
+  if (!device || !device.gatt || !device.gatt.connected) return false;
+  try {
+    await getModbusCharCached('streamChar', MODBUS_STREAM_CHAR_UUID);
+    await getModbusCharCached('subscribeChar', MODBUS_SUBSCRIBE_CHAR_UUID);
+    modbusStreamSupport = true;
+  } catch (e) {
+    modbusStreamSupport = false;
+  }
+  return modbusStreamSupport;
+}
+
+function isModbusStreamSupported() {
+  return modbusStreamSupport === true;
+}
+
+/**
+ * Subscribe WRITE paketi.
+ * Format: [0x01, subEpoch, slave, func, intervalMs_be16, rangeCount, ...ranges]
+ * @param {{subEpoch:number, slaveId:number, func:number, intervalMs:number, ranges:{start:number,qty:number}[]}} opts
+ */
+function buildModbusSubscribePacket(opts) {
+  if (!opts) return null;
+  const subEpoch = (opts.subEpoch != null ? opts.subEpoch : 0) & 0xff;
+  const slaveId = opts.slaveId | 0;
+  const func = opts.func | 0;
+  let intervalMs = opts.intervalMs != null ? (opts.intervalMs | 0) : 0;
+  const ranges = Array.isArray(opts.ranges) ? opts.ranges : [];
+
+  if (intervalMs !== 0) {
+    intervalMs = Math.min(5000, Math.max(200, intervalMs));
+  }
+  if (slaveId < 1 || slaveId > 247) return null;
+  if (func !== 0x03 && func !== 0x04 && intervalMs !== 0) return null;
+  if (ranges.length > 16) return null;
+
+  let sumQty = 0;
+  for (let i = 0; i < ranges.length; i++) {
+    const q = ranges[i].qty | 0;
+    if (q < 1 || q > 64) return null;
+    sumQty += q;
+  }
+  if (intervalMs !== 0 && (ranges.length < 1 || sumQty < 1 || sumQty > 64)) return null;
+
+  const rangeCount = intervalMs === 0 ? 0 : ranges.length;
+  const packet = new Uint8Array(7 + rangeCount * 4);
+  packet[0] = 0x01;
+  packet[1] = subEpoch;
+  packet[2] = slaveId & 0xff;
+  packet[3] = func & 0xff;
+  packet[4] = (intervalMs >> 8) & 0xff;
+  packet[5] = intervalMs & 0xff;
+  packet[6] = rangeCount & 0xff;
+  for (let i = 0; i < rangeCount; i++) {
+    const start = ranges[i].start & 0xffff;
+    const qty = ranges[i].qty & 0xffff;
+    const off = 7 + i * 4;
+    packet[off] = (start >> 8) & 0xff;
+    packet[off + 1] = start & 0xff;
+    packet[off + 2] = (qty >> 8) & 0xff;
+    packet[off + 3] = qty & 0xff;
+  }
+  return packet;
+}
+
+async function writeModbusSubscribe(packet) {
+  if (!packet || !(packet instanceof Uint8Array)) throw new Error('Geçersiz Subscribe paketi');
+  const run = async () => {
+    const subscribeChar = await getModbusCharCached('subscribeChar', MODBUS_SUBSCRIBE_CHAR_UUID);
+    if (packet.length >= 2) {
+      modbusActiveSubEpoch = packet[1] & 0xff;
+    }
+    resetModbusStreamChunkBuf();
+    if (typeof subscribeChar.writeValueWithoutResponse === 'function') {
+      try {
+        await subscribeChar.writeValueWithoutResponse(packet);
+        return;
+      } catch (e) { /* fall through to writeValue */ }
+    }
+    await subscribeChar.writeValue(packet);
+  };
+  const resultPromise = modbusRequestChain.then(run, run);
+  modbusRequestChain = resultPromise.then(function() {}, function() {});
+  return resultPromise;
+}
+
+function setModbusActiveSubEpoch(epoch) {
+  modbusActiveSubEpoch = epoch & 0xff;
+  resetModbusStreamChunkBuf();
+}
+
+function addModbusStreamListener(fn) {
+  if (typeof fn === 'function' && modbusStreamListeners.indexOf(fn) === -1) {
+    modbusStreamListeners.push(fn);
+  }
+}
+
+function removeModbusStreamListener(fn) {
+  const idx = modbusStreamListeners.indexOf(fn);
+  if (idx >= 0) modbusStreamListeners.splice(idx, 1);
+}
+
 /**
  * Query yazar; Notify varsa cevap gelince resolve, yoksa sleep+read.
  */
 async function sendModbusRequest(packet) {
   const run = async () => {
-    const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
-    const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
-    const queryChar = await service.getCharacteristic(MODBUS_QUERY_CHAR_UUID);
-    let responseChar = modbusResponseChar;
+    const queryChar = await getModbusCharCached('queryChar', MODBUS_QUERY_CHAR_UUID);
+    let responseChar = modbusResponseChar || modbusGattCache.responseChar;
     if (!responseChar) {
-      responseChar = await service.getCharacteristic(MODBUS_RESPONSE_CHAR_UUID);
+      responseChar = await getModbusCharCached('responseChar', MODBUS_RESPONSE_CHAR_UUID);
     }
 
     if (!modbusNotifyReady) {
@@ -1248,10 +1555,25 @@ async function sendModbusRequest(packet) {
   return resultPromise;
 }
 
+async function teardownAllModbusBle() {
+  await teardownModbusStreamNotify();
+  await teardownModbusResponseNotify();
+  clearModbusGattCache();
+}
+
 // Live Modbus / sayfa poller API
 window.isBleConnected = isBleConnected;
 window.buildModbusQueryPacket = buildModbusQueryPacket;
 window.sendModbusRequest = sendModbusRequest;
+window.buildModbusSubscribePacket = buildModbusSubscribePacket;
+window.writeModbusSubscribe = writeModbusSubscribe;
+window.probeModbusStreamSupport = probeModbusStreamSupport;
+window.isModbusStreamSupported = isModbusStreamSupported;
+window.setupModbusStreamNotify = setupModbusStreamNotify;
+window.teardownModbusStreamNotify = teardownModbusStreamNotify;
+window.addModbusStreamListener = addModbusStreamListener;
+window.removeModbusStreamListener = removeModbusStreamListener;
+window.setModbusActiveSubEpoch = setModbusActiveSubEpoch;
 window.statusCodeToText = statusCodeToText;
 window.parseModbusResponse = parseModbusResponse;
 window.logMsg = logMsg;

@@ -315,9 +315,9 @@
       delete demoTimers[k];
     });
 
-    window.LiveModbus.startLivePoll({
+    window.LiveModbus.startLive({
       owner: 'charts',
-      intervalMs: 1500,
+      intervalMs: 500,
       getDeviceDef: function() {
         var deviceId = typeof window.getCurrentDeviceId === 'function' ? window.getCurrentDeviceId() : null;
         return deviceId ? getDeviceById(deviceId) : null;

@@ -8,7 +8,10 @@
     if (typeof window.stopHarmonicsLive === 'function') window.stopHarmonicsLive();
     if (typeof window.stopIoMonitorLive === 'function') window.stopIoMonitorLive();
     if (typeof window.stopChartsLive === 'function') window.stopChartsLive();
-    if (window.LiveModbus) window.LiveModbus.stopLivePoll();
+    if (window.LiveModbus) {
+      if (typeof window.LiveModbus.stopLiveStream === 'function') window.LiveModbus.stopLiveStream();
+      else window.LiveModbus.stopLivePoll();
+    }
   }
 
   function showPage(pageId) {

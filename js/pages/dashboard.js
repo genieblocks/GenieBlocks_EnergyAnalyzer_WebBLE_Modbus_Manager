@@ -277,6 +277,31 @@
     return params;
   }
 
+  /** Stream hot set: anlık ölçüm + status/enerji + FW (sum qty <= 64). */
+  function isHotReg(reg) {
+    return (reg >= 0 && reg <= 29) || (reg >= 468 && reg <= 479) || (reg >= 560 && reg <= 561);
+  }
+
+  /** Soğuk set: max/min blokları — seyrek Query. */
+  function isColdReg(reg) {
+    return reg >= 408 && reg <= 467;
+  }
+
+  function usesEnanHotColdSplit(deviceId) {
+    return deviceId === 'devinno-enan01';
+  }
+
+  function collectHotParams(device, deviceId) {
+    var all = collectGroupParams(device);
+    if (!usesEnanHotColdSplit(deviceId)) return all;
+    return all.filter(function(p) { return isHotReg(p.reg); });
+  }
+
+  function collectColdParams(device, deviceId) {
+    if (!usesEnanHotColdSplit(deviceId)) return [];
+    return collectGroupParams(device).filter(function(p) { return isColdReg(p.reg); });
+  }
+
   function applyValuesToUi(deviceId, device, values) {
     device.groups.forEach(function(group) {
       group.params.forEach(function(param) {
@@ -298,13 +323,24 @@
     if (!device || !window.LiveModbus) return;
     liveActive = true;
     updateModeBadge();
-    window.LiveModbus.startLivePoll({
+    window.LiveModbus.startLive({
       owner: 'dashboard',
-      intervalMs: 2000,
+      intervalMs: 500,
+      coldIntervalMs: 15000,
       getDeviceDef: function() { return getDeviceById(currentDeviceId); },
       getParams: function() {
         var d = getDeviceById(currentDeviceId);
-        return d ? collectGroupParams(d) : [];
+        if (!d) return [];
+        // Stream destekli ENAN: hot set; Query fallback / diğer cihazlar: tüm gruplar
+        if (typeof window.isModbusStreamSupported === 'function' && window.isModbusStreamSupported() &&
+            usesEnanHotColdSplit(currentDeviceId)) {
+          return collectHotParams(d, currentDeviceId);
+        }
+        return collectGroupParams(d);
+      },
+      getColdParams: function() {
+        var d = getDeviceById(currentDeviceId);
+        return d ? collectColdParams(d, currentDeviceId) : [];
       },
       onValues: function(values) {
         var d = getDeviceById(currentDeviceId);

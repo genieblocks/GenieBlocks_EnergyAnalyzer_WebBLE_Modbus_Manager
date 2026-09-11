@@ -1,0 +1,89 @@
+Servis Adı,Servis UUID,Karakteristik Adı,Karakteristik UUID,Veri Tipi,Default Değer,Açıklama/Birim,Min/Max,Okuma/Yazma,BLE Client'tan Yazılabilir mi,NVS'de Saklanıyor mu?,Cihaz Resetinde Sıfırlanır mı,Saklanmalı mı?
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,DevEUI,0000a201-0000-1000-8000-00805f9b34fb,8 byte,00 04 A3 0B 00 00 00 56,Cihaz EUI,-,R/W,Evet,Evet,Hayır,-
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,AppEUI,0000a202-0000-1000-8000-00805f9b34fb,8 byte,70 B3 D5 7E D0 05 20 45,Uygulama EUI,-,R/W,Evet,Evet,Hayır,-
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,AppKey,0000a203-0000-1000-8000-00805f9b34fb,16 byte,2B 7E 15 16 28 AE D2 A6 AB F7 15 88 09 CF 4F 3C,LoRaWAN Key,-,R/W,Evet,Evet,Hayır,-
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,Platform,0000a204-0000-1000-8000-00805f9b34fb,String,GenieBlocks,Platform adı,-,R/W,Evet,Evet,Hayır,-
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,Freq,0000a205-0000-1000-8000-00805f9b34fb,String,EU868,Frekans bandı,-,R/W,Evet,Evet,Hayır,-
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,PckPo,0000a206-0000-1000-8000-00805f9b34fb,uint8,0x1C,Paket periyodu,0-255,R/W,Evet,Evet,Hayır,-
+LoRaWAN,0000a100-0000-1000-8000-00805f9b34fb,ADR,0000a207-0000-1000-8000-00805f9b34fb,bool,1,Adaptif Rate,0/1,R/W,Evet,Evet,Hayır,-
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Device EUI,0000a109-0000-1000-8000-00805f9b34fb,8 byte,00 04 A3 0B 00 00 00 56,Cihaz EUI,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Device Model,0000a102-0000-1000-8000-00805f9b34fb,String,GB-MODBUS,Model,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Software Version,0000a10a-0000-1000-8000-00805f9b34fb,String,1.0.0,Sürüm,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Hardware Version,0000a10b-0000-1000-8000-00805f9b34fb,String,1.0,Donanım,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,LoRaWAN Version,0000a10c-0000-1000-8000-00805f9b34fb,String,1.0.4,LoRaWAN,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Work Mode,0000a10d-0000-1000-8000-00805f9b34fb,String,Periodic,Çalışma modu,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Geolocation Strategy,0000a10e-0000-1000-8000-00805f9b34fb,String,GPS,Konum,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Class Type,0000a10f-0000-1000-8000-00805f9b34fb,String,A,Sınıf,-,R,Hayır,Hayır,Evet,Hayır
+Device Info,0000180a-0000-1000-8000-00805f9b34fb,Battery,0000a110-0000-1000-8000-00805f9b34fb,uint8,100,Batarya (%),0-100,R,Hayır,Hayır,Evet,Hayır
+System,0000a200-0000-1000-8000-00805f9b34fb,Commit,0000a210-0000-1000-8000-00805f9b34fb,uint8,0,Reset komutu,0/1,W,Evet,Hayır,Evet,Hayır
+Pressure,0000a300-0000-1000-8000-00805f9b34fb,Value,0000a301-0000-1000-8000-00805f9b34fb,String,0.0 mbar,Basınç,-,R,Hayır,Hayır,Evet,Hayır
+Pressure,0000a300-0000-1000-8000-00805f9b34fb,Temp,0000a302-0000-1000-8000-00805f9b34fb,String,25.0 °C,Sıcaklık,-,R,Hayır,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Addr,0000a401-0000-1000-8000-00805f9b34fb,uint8,1,Slave adresi,1-247,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Baud,0000a402-0000-1000-8000-00805f9b34fb,String,115200,Baudrate,-,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Parity,0000a403-0000-1000-8000-00805f9b34fb,uint8,0,Parite,0-2,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,StopBits,0000a404-0000-1000-8000-00805f9b34fb,uint8,1,Stop bit,1-2,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,DataBits,0000a405-0000-1000-8000-00805f9b34fb,uint8,8,Data bit,7-8,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Timeout,0000a406-0000-1000-8000-00805f9b34fb,String,1000 ms,Zaman aşımı,-,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Polling,0000a407-0000-1000-8000-00805f9b34fb,String,1000 ms,Anket periyodu,-,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Func,0000a408-0000-1000-8000-00805f9b34fb,uint8,3,Fonksiyon kodu,1-6,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Start,0000a409-0000-1000-8000-00805f9b34fb,uint16,0,Başlangıç reg.,0-65535,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Len,0000a40a-0000-1000-8000-00805f9b34fb,uint16,2,Reg uzunluğu,1-125,R/W,Evet,Hayır,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Query,0000a40b-0000-1000-8000-00805f9b34fb,binary,-,Ad-hoc Modbus isteği,-,W,Evet,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Response,0000a40c-0000-1000-8000-00805f9b34fb,binary,-,Ad-hoc Modbus cevabı (notify),-,R/N,Hayır,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Subscribe,0000a40d-0000-1000-8000-00805f9b34fb,binary,-,Sayfa aboneliği (range listesi),-,W,Evet,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Stream,0000a40e-0000-1000-8000-00805f9b34fb,binary,-,Sayfa snapshot stream (notify),-,R/N,Hayır,Hayır,Evet,Hayır
+Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Heartbeat,0000a501-0000-1000-8000-00805f9b34fb,String,60 sn,Kalp atışı,-,R/W,Evet,Hayır,Hayır,Evet
+Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Sensor Enable,0000a502-0000-1000-8000-00805f9b34fb,bool,1,Sensör aktif,0/1,R/W,Evet,Hayır,Hayır,Evet
+Work Mode,0000a500-0000-1000-8000-00805f9b34fb,SOS Mode,0000a503-0000-1000-8000-00805f9b34fb,bool,0,SOS modu,0/1,R/W,Evet,Hayır,Hayır,Evet
+Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Work Mode,0000a504-0000-1000-8000-00805f9b34fb,String,Periodic,Çalışma modu,-,R/W,Evet,Hayır,Hayır,Evet
+Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Uplink Interval,0000a505-0000-1000-8000-00805f9b34fb,String,300 sn,Uplink süresi,-,R/W,Evet,Hayır,Hayır,Evet
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Accel X,0000a601-0000-1000-8000-00805f9b34fb,String,0.0 g,İvme,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Accel Y,0000a602-0000-1000-8000-00805f9b34fb,String,0.0 g,İvme,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Accel Z,0000a603-0000-1000-8000-00805f9b34fb,String,0.0 g,İvme,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Gyro X,0000a604-0000-1000-8000-00805f9b34fb,String,0.0 dps,Gyro,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Gyro Y,0000a605-0000-1000-8000-00805f9b34fb,String,0.0 dps,Gyro,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Gyro Z,0000a606-0000-1000-8000-00805f9b34fb,String,0.0 dps,Gyro,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Mag X,0000a607-0000-1000-8000-00805f9b34fb,String,0.0 uT,Manyetometre,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Mag Y,0000a608-0000-1000-8000-00805f9b34fb,String,0.0 uT,Manyetometre,-,R,Hayır,Hayır,Evet,Hayır
+IMU,0000a600-0000-1000-8000-00805f9b34fb,Mag Z,0000a609-0000-1000-8000-00805f9b34fb,String,0.0 uT,Manyetometre,-,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,Lat,0000a701-0000-1000-8000-00805f9b34fb,String,0.0,Enlem,-,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,Lon,0000a702-0000-1000-8000-00805f9b34fb,String,0.0,Boylam,-,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,Alt,0000a703-0000-1000-8000-00805f9b34fb,String,0.0 m,Altitude,-,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,Speed,0000a704-0000-1000-8000-00805f9b34fb,String,0.0 km/h,Hız,-,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,Fix,0000a705-0000-1000-8000-00805f9b34fb,String,0 (No Fix),GPS Fix,-,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,SatCount,0000a706-0000-1000-8000-00805f9b34fb,uint8,0,Uydu sayısı,0-24,R,Hayır,Hayır,Evet,Hayır
+GPS,0000a700-0000-1000-8000-00805f9b34fb,UTC,0000a707-0000-1000-8000-00805f9b34fb,String,00:00:00,Zaman,-,R,Hayır,Hayır,Evet,Hayır
+Buzzer,0000a900-0000-1000-8000-00805f9b34fb,State,0000a901-0000-1000-8000-00805f9b34fb,bool,0,Açık/Kapalı,0/1,R/W,Evet,Hayır,Hayır,Evet
+Buzzer,0000a900-0000-1000-8000-00805f9b34fb,Pattern,0000a902-0000-1000-8000-00805f9b34fb,uint8,0,Bip deseni,0-255,R/W,Evet,Hayır,Hayır,Evet
+Buzzer,0000a900-0000-1000-8000-00805f9b34fb,Freq,0000a903-0000-1000-8000-00805f9b34fb,String,4000 Hz,Çıkış frekansı,-,R/W,Evet,Hayır,Hayır,Evet
+Button,0000aa00-0000-1000-8000-00805f9b34fb,State,0000aa01-0000-1000-8000-00805f9b34fb,bool,0,Buton durumu,0/1,R,Hayır,Hayır,Evet,Hayır
+Button,0000aa00-0000-1000-8000-00805f9b34fb,Count,0000aa02-0000-1000-8000-00805f9b34fb,uint32,0,Basılma sayısı,0-4294967295,R,Hayır,Hayır,Evet,Evet (opsiyonel)
+Button,0000aa00-0000-1000-8000-00805f9b34fb,Last Time,0000aa03-0000-1000-8000-00805f9b34fb,uint32,0,Son basılma ts,0-4294967295,R,Hayır,Hayır,Evet,Evet (opsiyonel)
+LED,0000ab00-0000-1000-8000-00805f9b34fb,State,0000ab01-0000-1000-8000-00805f9b34fb,bool,0,Açık/Kapalı,0/1,R/W,Evet,Hayır,Hayır,Evet
+LED,0000ab00-0000-1000-8000-00805f9b34fb,Mode,0000ab02-0000-1000-8000-00805f9b34fb,uint8,0,Mod,0-255,R/W,Evet,Hayır,Hayır,Evet
+LED,0000ab00-0000-1000-8000-00805f9b34fb,Brightness,0000ab03-0000-1000-8000-00805f9b34fb,String,100,Parlaklık (%),0-100,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO0 Value,0000a801-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO0 Direction,0000b801-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO0 MUX,0000c801-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO4 Value,0000a805-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO4 Direction,0000b805-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO4 MUX,0000c805-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO15 Value,0000a802-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO15 Direction,0000b802-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO15 MUX,0000c802-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO26 Value,0000a803-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO26 Direction,0000b803-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO26 MUX,0000c803-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO25 Value,0000a804-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO25 Direction,0000b804-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO25 MUX,0000c804-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO33 Value,0000a806-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO33 Direction,0000b806-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO33 MUX,0000c806-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO32 Value,0000a807-0000-1000-8000-00805f9b34fb,bool,0,Pin değeri,0/1,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO32 Direction,0000b807-0000-1000-8000-00805f9b34fb,uint8,1,Pin yönü,0/1/2,R/W,Evet,Hayır,Hayır,Evet
+GPIO,0000a800-0000-1000-8000-00805f9b34fb,GPIO32 MUX,0000c807-0000-1000-8000-00805f9b34fb,uint8,1,Pin fonksiyonu,0/1,R/W,Evet,Hayır,Hayır,Evet 
+OTA,00008018-0000-1000-8000-00805f9b34fb,RECV_FW_CHAR,00008020-0000-1000-8000-00805f9b34fb,byte array,-,Firmware alımı,FW chunk,R/W,Evet,Hayır,Hayır,Hayır
+OTA,00008018-0000-1000-8000-00805f9b34fb,PROGRESS_BAR_CHAR,00008021-0000-1000-8000-00805f9b34fb,uint8,0,İlerleme göstergesi,0-100,R,Hayır,Hayır,Hayır,Hayır
+OTA,00008018-0000-1000-8000-00805f9b34fb,COMMAND_CHAR,00008022-0000-1000-8000-00805f9b34fb,byte array,-,Komut/ACK,Komut paketi,R/W,Evet,Hayır,Hayır,Hayır
+OTA,00008018-0000-1000-8000-00805f9b34fb,CUSTOMER_CHAR,00008023-0000-1000-8000-00805f9b34fb,byte array,-,Kullanıcı tanımlı veri,-,R/W,Evet,Hayır,Hayır,Hayır 

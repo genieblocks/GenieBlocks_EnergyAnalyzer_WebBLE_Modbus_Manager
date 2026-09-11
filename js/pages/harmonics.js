@@ -37,9 +37,9 @@
   function startHarmLive(device) {
     if (!window.LiveModbus || !window.LiveModbus.shouldUseLive()) return;
     harmLiveActive = true;
-    window.LiveModbus.startLivePoll({
+    window.LiveModbus.startLive({
       owner: 'harmonics',
-      intervalMs: 2500,
+      intervalMs: 1000,
       getDeviceDef: function() { return getDevice(); },
       getParams: function() {
         var d = getDevice();

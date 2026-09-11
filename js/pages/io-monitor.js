@@ -90,9 +90,9 @@
   function startIoLive(device, ios) {
     if (!window.LiveModbus || !window.LiveModbus.shouldUseLive()) return;
     livePolling = true;
-    window.LiveModbus.startLivePoll({
+    window.LiveModbus.startLive({
       owner: 'io-monitor',
-      intervalMs: 1500,
+      intervalMs: 500,
       getDeviceDef: function() { return device; },
       getParams: function() { return collectIoParams(ios); },
       onValues: function(values) {

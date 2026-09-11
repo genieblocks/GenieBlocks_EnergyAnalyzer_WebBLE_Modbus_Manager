@@ -2,6 +2,8 @@
 
 (function() {
   var MAX_QTY = 32;
+  var SUBSCRIBE_MAX_QTY_SUM = 64;
+  var SUBSCRIBE_MAX_RANGES = 16;
   var DEMO_MODE_KEY = 'gb_demo_mode';
   var pollTimer = null;
   var pollBusy = false;
@@ -13,6 +15,18 @@
   var heldRegs = Object.create(null);
   var DEFAULT_HOLD_MS = 2500;
   var WRITE_GRACE_MS = 2000;
+
+  /** Stream session state */
+  var streamActive = false;
+  var streamSubEpoch = 0;
+  var streamRanges = [];
+  var streamParams = [];
+  var streamListener = null;
+  var streamOpts = null;
+  var coldTimer = null;
+  var coldBusy = false;
+  var resubTimer = null;
+  var lastParamsKey = '';
 
   /**
    * Register’ı poll onValues’tan tut.
@@ -163,6 +177,107 @@
   }
 
   /**
+   * Subscribe bütçesine göre range listesi: bitişik birleştir, sum(qty)<=64, rangeCount<=16.
+   * Fazlası kesilir (log).
+   * @param {Array<{reg:number,len?:number}|number>} paramsOrRegs
+   * @returns {{start:number,qty:number}[]}
+   */
+  function paramsToSubscribeRanges(paramsOrRegs) {
+    var spans = [];
+    (paramsOrRegs || []).forEach(function(p) {
+      var start = typeof p === 'number' ? p : p.reg;
+      var len = typeof p === 'number' ? 1 : (p.len || 1);
+      for (var i = 0; i < len; i++) spans.push(start + i);
+    });
+    spans = spans.filter(function(v, i, a) { return a.indexOf(v) === i; }).sort(function(a, b) { return a - b; });
+    if (!spans.length) return [];
+
+    var full = [];
+    var start = spans[0];
+    var prev = spans[0];
+    for (var i = 1; i < spans.length; i++) {
+      var cur = spans[i];
+      if (cur === prev + 1) {
+        prev = cur;
+      } else {
+        full.push({ start: start, qty: prev - start + 1 });
+        start = cur;
+        prev = cur;
+      }
+    }
+    full.push({ start: start, qty: prev - start + 1 });
+
+    var out = [];
+    var sum = 0;
+    var truncated = false;
+    for (var r = 0; r < full.length; r++) {
+      if (out.length >= SUBSCRIBE_MAX_RANGES) {
+        truncated = true;
+        break;
+      }
+      var qty = full[r].qty;
+      if (sum + qty > SUBSCRIBE_MAX_QTY_SUM) {
+        var room = SUBSCRIBE_MAX_QTY_SUM - sum;
+        if (room > 0) {
+          out.push({ start: full[r].start, qty: room });
+          sum += room;
+        }
+        truncated = true;
+        break;
+      }
+      out.push({ start: full[r].start, qty: qty });
+      sum += qty;
+    }
+    if (truncated && typeof window.logMsg === 'function') {
+      window.logMsg('Subscribe: sum(qty) veya rangeCount limiti aşıldı; ilk ' + sum + ' register alındı.');
+    }
+    return out;
+  }
+
+  function paramsKey(params) {
+    if (!params || !params.length) return '';
+    return params.map(function(p) {
+      return (typeof p === 'number' ? p : p.reg) + ':' + (typeof p === 'number' ? 1 : (p.len || 1));
+    }).join(',');
+  }
+
+  function decodeParamsFromRawMap(params, rawMap) {
+    var decoded = {};
+    (params || []).forEach(function(param) {
+      if (typeof param === 'number') {
+        if (rawMap[param] !== undefined) decoded[param] = rawMap[param];
+        return;
+      }
+      var len = param.len || 1;
+      var slice = [];
+      for (var i = 0; i < len; i++) {
+        var v = rawMap[param.reg + i];
+        if (v === undefined) return;
+        slice.push(v);
+      }
+      if (typeof decodeRegisterValue === 'function' && param.type) {
+        decoded[param.reg] = decodeRegisterValue(slice, param);
+      } else {
+        decoded[param.reg] = slice[0] * (param.scale || 1);
+      }
+    });
+    return decoded;
+  }
+
+  function rawMapFromSubscribePayload(ranges, registers) {
+    var map = {};
+    var idx = 0;
+    for (var i = 0; i < ranges.length; i++) {
+      var r = ranges[i];
+      for (var j = 0; j < r.qty; j++) {
+        if (idx >= registers.length) return map;
+        map[r.start + j] = registers[idx++];
+      }
+    }
+    return map;
+  }
+
+  /**
    * @param {{slave:number,func:number}} cfg
    * @param {{start:number,qty:number}[]} ranges
    * @returns {Promise<Object<number,number>>} map pdu -> uint16
@@ -199,22 +314,7 @@
     var cfg = getSlaveAndFunc(deviceDef);
     var ranges = coalesceRanges(params);
     var rawMap = await readRegisterMap(cfg, ranges);
-    var decoded = {};
-    params.forEach(function(param) {
-      var len = param.len || 1;
-      var slice = [];
-      for (var i = 0; i < len; i++) {
-        var v = rawMap[param.reg + i];
-        if (v === undefined) return;
-        slice.push(v);
-      }
-      if (typeof decodeRegisterValue === 'function' && param.type) {
-        decoded[param.reg] = decodeRegisterValue(slice, param);
-      } else {
-        decoded[param.reg] = slice[0] * (param.scale || 1);
-      }
-    });
-    return decoded;
+    return decodeParamsFromRawMap(params, rawMap);
   }
 
   /**
@@ -288,6 +388,49 @@
     return Math.round(num) & 0xffff;
   }
 
+  function clearColdTimer() {
+    if (coldTimer) {
+      clearTimeout(coldTimer);
+      coldTimer = null;
+    }
+    coldBusy = false;
+  }
+
+  function clearResubTimer() {
+    if (resubTimer) {
+      clearTimeout(resubTimer);
+      resubTimer = null;
+    }
+  }
+
+  async function writeUnsubscribe() {
+    if (typeof window.buildModbusSubscribePacket !== 'function' || typeof window.writeModbusSubscribe !== 'function') {
+      return;
+    }
+    if (typeof window.isModbusStreamSupported === 'function' && !window.isModbusStreamSupported()) {
+      return;
+    }
+    try {
+      var packet = window.buildModbusSubscribePacket({
+        subEpoch: streamSubEpoch & 0xff,
+        slaveId: 1,
+        func: 0x03,
+        intervalMs: 0,
+        ranges: []
+      });
+      if (packet) await window.writeModbusSubscribe(packet);
+    } catch (e) {
+      /* disconnect sırasında beklenen */
+    }
+  }
+
+  function detachStreamListener() {
+    if (streamListener && typeof window.removeModbusStreamListener === 'function') {
+      window.removeModbusStreamListener(streamListener);
+    }
+    streamListener = null;
+  }
+
   function stopLivePoll(owner) {
     if (owner && activeOwner && owner !== activeOwner) return;
     pollToken++;
@@ -296,6 +439,17 @@
       pollTimer = null;
     }
     pollBusy = false;
+    clearColdTimer();
+    clearResubTimer();
+    if (streamActive) {
+      detachStreamListener();
+      writeUnsubscribe();
+      streamActive = false;
+    }
+    streamOpts = null;
+    streamRanges = [];
+    streamParams = [];
+    lastParamsKey = '';
     activeOwner = null;
     clearAllHeldRegs();
   }
@@ -348,6 +502,204 @@
     tick();
   }
 
+  function scheduleColdPoll(opts, myToken) {
+    clearColdTimer();
+    var coldInterval = opts.coldIntervalMs != null ? opts.coldIntervalMs : 15000;
+    if (!opts.getColdParams || coldInterval <= 0) return;
+
+    function coldTick() {
+      if (myToken !== pollToken || !streamActive) return;
+      if (!isBleConnected()) return;
+      if (coldBusy) {
+        coldTimer = setTimeout(coldTick, coldInterval);
+        return;
+      }
+      coldBusy = true;
+      Promise.resolve().then(async function() {
+        try {
+          var deviceDef = typeof opts.getDeviceDef === 'function' ? opts.getDeviceDef() : null;
+          var coldParams = opts.getColdParams() || [];
+          if (deviceDef && coldParams.length) {
+            var values = await readParams(deviceDef, coldParams);
+            if (myToken === pollToken && streamActive) {
+              opts.onValues(filterValuesAgainstHeld(values), coldParams);
+            }
+          }
+        } catch (e) {
+          if (typeof opts.onError === 'function') opts.onError(e);
+        } finally {
+          coldBusy = false;
+          if (myToken === pollToken && streamActive) {
+            coldTimer = setTimeout(coldTick, coldInterval);
+          }
+        }
+      });
+    }
+
+    coldTimer = setTimeout(coldTick, coldInterval);
+  }
+
+  async function applySubscribe(opts, myToken) {
+    var deviceDef = typeof opts.getDeviceDef === 'function' ? opts.getDeviceDef() : null;
+    var params = opts.getParams() || [];
+    if (!deviceDef || !params.length) return false;
+
+    var cfg = getSlaveAndFunc(deviceDef);
+    var ranges = paramsToSubscribeRanges(params);
+    if (!ranges.length) return false;
+
+    streamSubEpoch = (streamSubEpoch + 1) & 0xff;
+    if (streamSubEpoch === 0) streamSubEpoch = 1;
+    streamRanges = ranges;
+    streamParams = params;
+    lastParamsKey = paramsKey(params);
+
+    var intervalMs = opts.intervalMs != null ? opts.intervalMs : 1000;
+    var packet = window.buildModbusSubscribePacket({
+      subEpoch: streamSubEpoch,
+      slaveId: cfg.slave,
+      func: cfg.func,
+      intervalMs: intervalMs,
+      ranges: ranges
+    });
+    if (!packet) throw new Error('Subscribe paketi oluşturulamadı');
+    if (typeof window.setModbusActiveSubEpoch === 'function') {
+      window.setModbusActiveSubEpoch(streamSubEpoch);
+    }
+    await window.writeModbusSubscribe(packet);
+    if (typeof window.logMsg === 'function') {
+      window.logMsg('Modbus Subscribe epoch=' + streamSubEpoch + ' ranges=' + ranges.length +
+        ' qtySum=' + ranges.reduce(function(s, r) { return s + r.qty; }, 0) +
+        ' interval=' + intervalMs + 'ms');
+    }
+    return true;
+  }
+
+  function scheduleParamsWatch(opts, myToken) {
+    clearResubTimer();
+    function watch() {
+      if (myToken !== pollToken || !streamActive) return;
+      try {
+        var params = opts.getParams() || [];
+        var key = paramsKey(params);
+        if (key !== lastParamsKey) {
+          applySubscribe(opts, myToken).catch(function(e) {
+            if (typeof opts.onError === 'function') opts.onError(e);
+          });
+        }
+      } catch (e) {
+        if (typeof opts.onError === 'function') opts.onError(e);
+      }
+      if (myToken === pollToken && streamActive) {
+        resubTimer = setTimeout(watch, 400);
+      }
+    }
+    resubTimer = setTimeout(watch, 400);
+  }
+
+  /**
+   * Subscribe/Stream canlı okuma. Destek yoksa Query poll’a düşer.
+   * @param {{ owner:string, getParams:Function, onValues:Function, getDeviceDef:Function, intervalMs?:number, onError?:Function, onDisconnected?:Function, getColdParams?:Function, coldIntervalMs?:number }} opts
+   */
+  function startLiveStream(opts) {
+    stopLivePoll();
+    if (!opts || typeof opts.getParams !== 'function' || typeof opts.onValues !== 'function') return;
+
+    var myToken = pollToken;
+    activeOwner = opts.owner || 'default';
+    streamOpts = opts;
+
+    async function begin() {
+      if (myToken !== pollToken) return;
+      if (!isBleConnected()) {
+        if (typeof opts.onDisconnected === 'function') opts.onDisconnected();
+        stopLivePoll(activeOwner);
+        return;
+      }
+
+      var supported = false;
+      try {
+        if (typeof window.probeModbusStreamSupport === 'function') {
+          supported = await window.probeModbusStreamSupport();
+        } else if (typeof window.isModbusStreamSupported === 'function') {
+          supported = window.isModbusStreamSupported();
+        }
+      } catch (e) {
+        supported = false;
+      }
+
+      if (myToken !== pollToken) return;
+
+      if (!supported) {
+        if (typeof window.logMsg === 'function') {
+          window.logMsg('Modbus Stream yok — Query poll kullanılıyor.');
+        }
+        startLivePoll(opts);
+        return;
+      }
+
+      try {
+        if (typeof window.setupModbusStreamNotify === 'function') {
+          await window.setupModbusStreamNotify();
+        }
+      } catch (e) {
+        startLivePoll(opts);
+        return;
+      }
+
+      if (myToken !== pollToken) return;
+
+      streamListener = function(evt) {
+        if (myToken !== pollToken || !streamActive) return;
+        if (!evt) return;
+        if (evt.subEpoch !== (streamSubEpoch & 0xff)) return;
+
+        if (evt.type === 'error') {
+          if (typeof opts.onError === 'function') {
+            opts.onError(new Error(evt.message || ('Stream status 0x' + (evt.status & 0xff).toString(16))));
+          }
+          return;
+        }
+        if (evt.type !== 'snapshot') return;
+
+        var rawMap = rawMapFromSubscribePayload(streamRanges, evt.registers || []);
+        var decoded = decodeParamsFromRawMap(streamParams, rawMap);
+        opts.onValues(filterValuesAgainstHeld(decoded), streamParams);
+      };
+
+      if (typeof window.addModbusStreamListener === 'function') {
+        window.addModbusStreamListener(streamListener);
+      }
+
+      streamActive = true;
+      try {
+        var ok = await applySubscribe(opts, myToken);
+        if (!ok) {
+          streamActive = false;
+          detachStreamListener();
+          startLivePoll(opts);
+          return;
+        }
+      } catch (e) {
+        streamActive = false;
+        detachStreamListener();
+        if (typeof opts.onError === 'function') opts.onError(e);
+        startLivePoll(opts);
+        return;
+      }
+
+      scheduleColdPoll(opts, myToken);
+      scheduleParamsWatch(opts, myToken);
+    }
+
+    begin();
+  }
+
+  /** Stream dene; yoksa poll. Sayfalar bunu kullanır. */
+  function startLive(opts) {
+    startLiveStream(opts);
+  }
+
   function addConnectionListener(fn) {
     if (typeof fn === 'function') connectionListeners.push(fn);
   }
@@ -363,6 +715,7 @@
     addDemoModeListener: addDemoModeListener,
     getSlaveAndFunc: getSlaveAndFunc,
     coalesceRanges: coalesceRanges,
+    paramsToSubscribeRanges: paramsToSubscribeRanges,
     readParams: readParams,
     readRawRegs: readRawRegs,
     writeRegisters: writeRegisters,
@@ -371,12 +724,18 @@
     isWritePending: isWritePending,
     clearAllHeldRegs: clearAllHeldRegs,
     startLivePoll: startLivePoll,
+    startLiveStream: startLiveStream,
+    startLive: startLive,
     stopLivePoll: stopLivePoll,
+    stopLiveStream: stopLivePoll,
     addConnectionListener: addConnectionListener
   };
 
   window.onBleConnectionChange = function(connected) {
-    if (!connected) clearAllHeldRegs();
+    if (!connected) {
+      stopLivePoll();
+      clearAllHeldRegs();
+    }
     connectionListeners.forEach(function(fn) {
       try { fn(!!connected); } catch (e) { /* ignore */ }
     });
