@@ -377,6 +377,98 @@
     }
   }
 
+  /**
+   * Yazılacak {reg,value} listesini bitişik BulkWrite range’lerine çevir.
+   * sum(qty) <= 64, rangeCount <= 16.
+   * @param {{reg:number, value:number}[]} items
+   * @returns {{start:number, values:number[]}[]}
+   */
+  function itemsToBulkWriteRanges(items) {
+    var sorted = (items || []).slice().sort(function(a, b) { return a.reg - b.reg; });
+    var ranges = [];
+    var sum = 0;
+    for (var i = 0; i < sorted.length; i++) {
+      var reg = sorted[i].reg | 0;
+      var val = sorted[i].value & 0xffff;
+      var last = ranges.length ? ranges[ranges.length - 1] : null;
+      var nextAddr = last ? last.start + last.values.length : -1;
+      if (last && reg === nextAddr && last.values.length < 64 && sum < 64 && ranges.length <= 16) {
+        last.values.push(val);
+        sum++;
+      } else {
+        if (ranges.length >= 16 || sum >= 64) {
+          throw new Error('BulkWrite limiti aşıldı (max 64 reg / 16 range)');
+        }
+        ranges.push({ start: reg, values: [val] });
+        sum++;
+      }
+    }
+    return ranges;
+  }
+
+  /**
+   * Toplu yazma: BulkWrite varsa tek BLE isteği; yoksa Query ile sırayla.
+   * @param {object} deviceDef
+   * @param {{reg:number, value:number}[]} items
+   */
+  async function writeParamsBulk(deviceDef, items) {
+    if (!isBleConnected()) throw new Error('Bluetooth bağlantısı yok');
+    if (!items || !items.length) return { status: 0 };
+
+    var ranges = itemsToBulkWriteRanges(items);
+    var held = [];
+    for (var i = 0; i < ranges.length; i++) {
+      holdRegisters(ranges[i].start, ranges[i].values, DEFAULT_HOLD_MS);
+      held.push(ranges[i]);
+    }
+
+    var useBulk = false;
+    try {
+      if (typeof window.probeModbusBulkWriteSupport === 'function') {
+        useBulk = await window.probeModbusBulkWriteSupport();
+      } else if (typeof window.isModbusBulkWriteSupported === 'function') {
+        useBulk = window.isModbusBulkWriteSupported();
+      }
+    } catch (e) {
+      useBulk = false;
+    }
+
+    try {
+      if (useBulk && typeof window.buildModbusBulkWritePacket === 'function' &&
+          typeof window.sendModbusBulkWrite === 'function') {
+        var cfg = getSlaveAndFunc(deviceDef);
+        var packet = window.buildModbusBulkWritePacket(cfg.slave, ranges);
+        if (!packet) throw new Error('BulkWrite paketi oluşturulamadı');
+        var res = await window.sendModbusBulkWrite(packet);
+        if (res.status !== 0) {
+          var msg = typeof window.statusCodeToText === 'function' ? window.statusCodeToText(res.status) : ('status ' + res.status);
+          if (res.failRangeIndex != null) msg += ' (range #' + res.failRangeIndex + ')';
+          throw new Error(msg);
+        }
+        for (var h = 0; h < held.length; h++) {
+          holdRegisters(held[h].start, held[h].values, WRITE_GRACE_MS);
+        }
+        if (typeof window.logMsg === 'function') {
+          window.logMsg('BulkWrite OK ranges=' + ranges.length + ' qtySum=' +
+            ranges.reduce(function(s, r) { return s + r.values.length; }, 0));
+        }
+        return res;
+      }
+
+      // Fallback: her range için Query yazma
+      var lastRes = null;
+      for (var r = 0; r < ranges.length; r++) {
+        lastRes = await writeRegisters(deviceDef, ranges[r].start, ranges[r].values);
+      }
+      return lastRes || { status: 0 };
+    } catch (e) {
+      for (var c = 0; c < held.length; c++) {
+        clearHeldRange(held[c].start, held[c].values.length);
+      }
+      throw e;
+    }
+  }
+
   function encodeParamRaw(param, displayValue) {
     var scale = param.scale || 1;
     if (param.options) {
@@ -719,6 +811,8 @@
     readParams: readParams,
     readRawRegs: readRawRegs,
     writeRegisters: writeRegisters,
+    writeParamsBulk: writeParamsBulk,
+    itemsToBulkWriteRanges: itemsToBulkWriteRanges,
     encodeParamRaw: encodeParamRaw,
     holdRegister: holdRegister,
     isWritePending: isWritePending,

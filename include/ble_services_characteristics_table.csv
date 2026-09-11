@@ -29,9 +29,10 @@ Modbus,0000a400-0000-1000-8000-00805f9b34fb,Func,0000a408-0000-1000-8000-00805f9
 Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Start,0000a409-0000-1000-8000-00805f9b34fb,uint16,0,Başlangıç reg.,0-65535,R/W,Evet,Hayır,Hayır,Evet
 Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Len,0000a40a-0000-1000-8000-00805f9b34fb,uint16,2,Reg uzunluğu,1-125,R/W,Evet,Hayır,Hayır,Evet
 Modbus,0000a400-0000-1000-8000-00805f9b34fb,Query,0000a40b-0000-1000-8000-00805f9b34fb,binary,-,Ad-hoc Modbus isteği,-,W,Evet,Hayır,Evet,Hayır
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Response,0000a40c-0000-1000-8000-00805f9b34fb,binary,-,Ad-hoc Modbus cevabı (notify),-,R/N,Hayır,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Response,0000a40c-0000-1000-8000-00805f9b34fb,binary,-,Query/BulkWrite cevabı (notify),-,R/N,Hayır,Hayır,Evet,Hayır
 Modbus,0000a400-0000-1000-8000-00805f9b34fb,Subscribe,0000a40d-0000-1000-8000-00805f9b34fb,binary,-,Sayfa aboneliği (sum qty<=128; UART dilim 64),-,W,Evet,Hayır,Evet,Hayır
 Modbus,0000a400-0000-1000-8000-00805f9b34fb,Stream,0000a40e-0000-1000-8000-00805f9b34fb,binary,-,Sayfa snapshot stream (notify; chunk max 180),-,R/N,Hayır,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,BulkWrite,0000a40f-0000-1000-8000-00805f9b34fb,binary,-,Toplu yazma (çok range; sum qty<=64),-,W,Evet,Hayır,Evet,Hayır
 Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Heartbeat,0000a501-0000-1000-8000-00805f9b34fb,String,60 sn,Kalp atışı,-,R/W,Evet,Hayır,Hayır,Evet
 Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Sensor Enable,0000a502-0000-1000-8000-00805f9b34fb,bool,1,Sensör aktif,0/1,R/W,Evet,Hayır,Hayır,Evet
 Work Mode,0000a500-0000-1000-8000-00805f9b34fb,SOS Mode,0000a503-0000-1000-8000-00805f9b34fb,bool,0,SOS modu,0/1,R/W,Evet,Hayır,Hayır,Evet

@@ -172,6 +172,8 @@
     }
     if (btn) btn.disabled = true;
     try {
+      var items = [];
+      var flashEls = [];
       for (var i = 0; i < group.params.length; i++) {
         var param = group.params[i];
         if (!param.writable && param.writable !== undefined) continue;
@@ -180,9 +182,12 @@
         if (!el) continue;
         var raw = window.LiveModbus.encodeParamRaw(param, el.value);
         if (raw === null) throw new Error('Geçersiz değer: ' + param.name);
-        await window.LiveModbus.writeRegisters(device, param.reg, [raw]);
-        flashEl(el, '#bfdbfe');
+        items.push({ reg: param.reg, value: raw });
+        flashEls.push(el);
       }
+      if (!items.length) throw new Error('Yazılacak parametre yok');
+      await window.LiveModbus.writeParamsBulk(device, items);
+      flashEls.forEach(function(el) { flashEl(el, '#bfdbfe'); });
       showToast('Yazma başarılı');
     } catch (e) {
       showToast('Yazma hatası: ' + (e.message || e));

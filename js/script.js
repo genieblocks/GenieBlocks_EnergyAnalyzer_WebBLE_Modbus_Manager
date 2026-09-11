@@ -975,6 +975,7 @@ function defineModbusUUIDs() {
   window.MODBUS_RESPONSE_CHAR_UUID = '0000a40c-0000-1000-8000-00805f9b34fb';
   window.MODBUS_SUBSCRIBE_CHAR_UUID = '0000a40d-0000-1000-8000-00805f9b34fb';
   window.MODBUS_STREAM_CHAR_UUID    = '0000a40e-0000-1000-8000-00805f9b34fb';
+  window.MODBUS_BULKWRITE_CHAR_UUID = '0000a40f-0000-1000-8000-00805f9b34fb';
 }
 // type=module: window.* otomatik lexical binding oluşturmaz
 const MODBUS_SERVICE_UUID = window.MODBUS_SERVICE_UUID;
@@ -992,6 +993,7 @@ const MODBUS_QUERY_CHAR_UUID = window.MODBUS_QUERY_CHAR_UUID;
 const MODBUS_RESPONSE_CHAR_UUID = window.MODBUS_RESPONSE_CHAR_UUID;
 const MODBUS_SUBSCRIBE_CHAR_UUID = window.MODBUS_SUBSCRIBE_CHAR_UUID;
 const MODBUS_STREAM_CHAR_UUID = window.MODBUS_STREAM_CHAR_UUID;
+const MODBUS_BULKWRITE_CHAR_UUID = window.MODBUS_BULKWRITE_CHAR_UUID;
 
 // Modbus karakteristiklerini oku
 async function readModbusAll() {
@@ -1064,15 +1066,20 @@ function buildModbusQueryPacket(slaveId, func, startAddr, qty, values) {
 
 /**
  * Response buffer'ını parse eder: transId, status, (okuma ise) register dizisi.
+ * BulkWrite hata: [transId, status, failRangeIndex]
  * @param {DataView} view
- * @returns {{ transId: number, status: number, registers?: number[] }}
+ * @returns {{ transId: number, status: number, registers?: number[], failRangeIndex?: number }}
  */
 function parseModbusResponse(view) {
   if (view.byteLength < 2) return { transId: 0, status: 0xff };
   const transId = view.getUint8(0);
   const status = view.getUint8(1);
   const result = { transId, status };
-  if (status === 0 && view.byteLength >= 4) {
+  if (status !== 0) {
+    if (view.byteLength >= 3) result.failRangeIndex = view.getUint8(2);
+    return result;
+  }
+  if (view.byteLength >= 4) {
     const dataLen = view.byteLength - 2;
     const regCount = dataLen >> 1;
     result.registers = [];
@@ -1089,6 +1096,7 @@ function statusCodeToText(code) {
     0x01: 'Illegal function (desteklenmeyen FC)',
     0x02: 'Illegal data address',
     0x03: 'Illegal data value',
+    0xE1: 'Bad format (Subscribe/BulkWrite)',
     0xE2: 'Timeout / cevap yok (RS-485)',
     0xE4: 'Invalid slave'
   };
@@ -1114,6 +1122,28 @@ function estimateModbusWaitMs(packet) {
   return Math.min(Math.max(ms, 250), 2500);
 }
 
+function estimateBulkWriteWaitMs(packet) {
+  let sumQty = 1;
+  if (packet && packet.length >= 4) {
+    const rangeCount = packet[3] & 0xff;
+    let pos = 4;
+    sumQty = 0;
+    for (let r = 0; r < rangeCount && pos + 4 <= packet.length; r++) {
+      const qty = (packet[pos + 2] << 8) | packet[pos + 3];
+      sumQty += qty;
+      pos += 4 + qty * 2;
+    }
+    if (sumQty < 1) sumQty = 1;
+  }
+  let ms = 450 + Math.min(sumQty, 64) * 20;
+  const timeoutEl = document.getElementById('mb_timeout');
+  if (timeoutEl && timeoutEl.value !== '') {
+    const t = parseInt(timeoutEl.value, 10);
+    if (!Number.isNaN(t) && t > 0) ms = Math.max(ms, t);
+  }
+  return Math.min(Math.max(ms, 400), 5000);
+}
+
 /** BLE Query/Response tek kanallı — istekleri sıraya al. */
 let modbusRequestChain = Promise.resolve();
 
@@ -1129,11 +1159,13 @@ let modbusGattCache = {
   queryChar: null,
   responseChar: null,
   subscribeChar: null,
-  streamChar: null
+  streamChar: null,
+  bulkWriteChar: null
 };
 
 /** Subscribe / Stream state */
 let modbusStreamSupport = null; // null=unknown, true/false
+let modbusBulkWriteSupport = null; // null=unknown, true/false
 let modbusStreamChar = null;
 let modbusStreamNotifyReady = false;
 let modbusStreamHandler = null;
@@ -1147,9 +1179,11 @@ function clearModbusGattCache() {
     queryChar: null,
     responseChar: null,
     subscribeChar: null,
-    streamChar: null
+    streamChar: null,
+    bulkWriteChar: null
   };
   modbusStreamSupport = null;
+  modbusBulkWriteSupport = null;
 }
 
 async function getModbusServiceCached() {
@@ -1486,6 +1520,162 @@ function removeModbusStreamListener(fn) {
 }
 
 /**
+ * BulkWrite paketi: [0x20, transId, slave, rangeCount, ...ranges]
+ * Her range: start_be16, qty_be16, qty × value_be16
+ * @param {number} slaveId
+ * @param {{start:number, values:number[]}[]} ranges
+ * @returns {Uint8Array|null}
+ */
+function buildModbusBulkWritePacket(slaveId, ranges) {
+  if (slaveId < 1 || slaveId > 247) return null;
+  if (!Array.isArray(ranges) || ranges.length < 1 || ranges.length > 16) return null;
+
+  let sumQty = 0;
+  let payloadBytes = 0;
+  for (let i = 0; i < ranges.length; i++) {
+    const vals = ranges[i].values;
+    if (!vals || !vals.length) return null;
+    const qty = vals.length;
+    if (qty < 1 || qty > 64) return null;
+    sumQty += qty;
+    payloadBytes += 4 + qty * 2;
+  }
+  if (sumQty < 1 || sumQty > 64) return null;
+
+  const totalLen = 4 + payloadBytes;
+  if (totalLen > 400) return null;
+
+  const packet = new Uint8Array(totalLen);
+  const tId = (manualModbusTransId++) & 0xff;
+  packet[0] = 0x20;
+  packet[1] = tId;
+  packet[2] = slaveId & 0xff;
+  packet[3] = ranges.length & 0xff;
+  let pos = 4;
+  for (let i = 0; i < ranges.length; i++) {
+    const start = ranges[i].start & 0xffff;
+    const vals = ranges[i].values;
+    const qty = vals.length;
+    packet[pos] = (start >> 8) & 0xff;
+    packet[pos + 1] = start & 0xff;
+    packet[pos + 2] = (qty >> 8) & 0xff;
+    packet[pos + 3] = qty & 0xff;
+    pos += 4;
+    for (let j = 0; j < qty; j++) {
+      const v = vals[j] & 0xffff;
+      packet[pos] = (v >> 8) & 0xff;
+      packet[pos + 1] = v & 0xff;
+      pos += 2;
+    }
+  }
+  return packet;
+}
+
+async function probeModbusBulkWriteSupport() {
+  if (modbusBulkWriteSupport === true || modbusBulkWriteSupport === false) return modbusBulkWriteSupport;
+  if (!device || !device.gatt || !device.gatt.connected) return false;
+  try {
+    await getModbusCharCached('bulkWriteChar', MODBUS_BULKWRITE_CHAR_UUID);
+    modbusBulkWriteSupport = true;
+  } catch (e) {
+    modbusBulkWriteSupport = false;
+  }
+  return modbusBulkWriteSupport;
+}
+
+function isModbusBulkWriteSupported() {
+  return modbusBulkWriteSupport === true;
+}
+
+/**
+ * BulkWrite yazar; Response notify/read ile [transId, status, ...] bekler.
+ */
+async function sendModbusBulkWrite(packet) {
+  if (!packet || !(packet instanceof Uint8Array) || packet.length < 4 || packet[0] !== 0x20) {
+    throw new Error('Geçersiz BulkWrite paketi');
+  }
+  const run = async () => {
+    const bulkChar = await getModbusCharCached('bulkWriteChar', MODBUS_BULKWRITE_CHAR_UUID);
+    let responseChar = modbusResponseChar || modbusGattCache.responseChar;
+    if (!responseChar) {
+      responseChar = await getModbusCharCached('responseChar', MODBUS_RESPONSE_CHAR_UUID);
+    }
+
+    if (!modbusNotifyReady) {
+      try {
+        if (!modbusResponseChar) await setupModbusResponseNotify();
+      } catch (e) { /* fallback */ }
+      responseChar = modbusResponseChar || responseChar;
+    }
+
+    const transId = packet[1] & 0xff;
+    const timeoutMs = estimateBulkWriteWaitMs(packet);
+
+    if (modbusNotifyReady && modbusResponseChar) {
+      let settled = false;
+      const responsePromise = new Promise(function(resolve) {
+        const timer = setTimeout(async function() {
+          if (settled) return;
+          try {
+            const value = await modbusResponseChar.readValue();
+            const parsed = parseModbusResponse(copyModbusDataView(value));
+            if (!settled && parsed.transId === transId) {
+              settled = true;
+              delete awaitingByTransId[transId];
+              clearTimeout(timer);
+              resolve(parsed);
+              return;
+            }
+          } catch (e) { /* ignore */ }
+          if (!settled) {
+            settled = true;
+            delete awaitingByTransId[transId];
+            resolve({ transId: transId, status: 0xE2 });
+          }
+        }, timeoutMs);
+
+        awaitingByTransId[transId] = {
+          resolve: function(parsed) {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            delete awaitingByTransId[transId];
+            resolve(parsed);
+          }
+        };
+      });
+
+      if (typeof bulkChar.writeValueWithoutResponse === 'function') {
+        try {
+          await bulkChar.writeValueWithoutResponse(packet);
+        } catch (e) {
+          await bulkChar.writeValue(packet);
+        }
+      } else {
+        await bulkChar.writeValue(packet);
+      }
+      return responsePromise;
+    }
+
+    if (typeof bulkChar.writeValueWithoutResponse === 'function') {
+      try {
+        await bulkChar.writeValueWithoutResponse(packet);
+      } catch (e) {
+        await bulkChar.writeValue(packet);
+      }
+    } else {
+      await bulkChar.writeValue(packet);
+    }
+    await sleep(timeoutMs);
+    const value = await responseChar.readValue();
+    return parseModbusResponse(copyModbusDataView(value));
+  };
+  const resultPromise = modbusRequestChain.then(run, run);
+  modbusRequestChain = resultPromise.then(function() {}, function() {});
+  return resultPromise;
+}
+
+/**
  * Query yazar; Notify varsa cevap gelince resolve, yoksa sleep+read.
  */
 async function sendModbusRequest(packet) {
@@ -1568,6 +1758,10 @@ window.buildModbusQueryPacket = buildModbusQueryPacket;
 window.sendModbusRequest = sendModbusRequest;
 window.buildModbusSubscribePacket = buildModbusSubscribePacket;
 window.writeModbusSubscribe = writeModbusSubscribe;
+window.buildModbusBulkWritePacket = buildModbusBulkWritePacket;
+window.sendModbusBulkWrite = sendModbusBulkWrite;
+window.probeModbusBulkWriteSupport = probeModbusBulkWriteSupport;
+window.isModbusBulkWriteSupported = isModbusBulkWriteSupported;
 window.probeModbusStreamSupport = probeModbusStreamSupport;
 window.isModbusStreamSupported = isModbusStreamSupported;
 window.setupModbusStreamNotify = setupModbusStreamNotify;
