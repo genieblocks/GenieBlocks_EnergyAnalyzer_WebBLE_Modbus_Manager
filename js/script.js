@@ -1434,36 +1434,50 @@ function isModbusStreamSupported() {
 
 /**
  * Subscribe WRITE paketi.
- * Format: [0x01, subEpoch, slave, func, intervalMs_be16, rangeCount, ...ranges]
- * @param {{subEpoch:number, slaveId:number, func:number, intervalMs:number, ranges:{start:number,qty:number}[]}} opts
+ * opcode 0x01 = continuous (intervalMs: 0 = unsubscribe)
+ * opcode 0x02 = one-shot (tek Stream turu; intervalMs yok sayılır)
+ * Format: [opcode, subEpoch, slave, func, intervalMs_be16, rangeCount, ...ranges]
+ * @param {{opcode?:number, subEpoch:number, slaveId:number, func:number, intervalMs?:number, ranges:{start:number,qty:number}[]}} opts
  */
 function buildModbusSubscribePacket(opts) {
   if (!opts) return null;
+  const opcode = (opts.opcode != null ? opts.opcode : 0x01) & 0xff;
   const subEpoch = (opts.subEpoch != null ? opts.subEpoch : 0) & 0xff;
   const slaveId = opts.slaveId | 0;
   const func = opts.func | 0;
   let intervalMs = opts.intervalMs != null ? (opts.intervalMs | 0) : 0;
   const ranges = Array.isArray(opts.ranges) ? opts.ranges : [];
 
-  if (intervalMs !== 0) {
-    intervalMs = Math.min(5000, Math.max(200, intervalMs));
-  }
+  if (opcode !== 0x01 && opcode !== 0x02) return null;
   if (slaveId < 1 || slaveId > 247) return null;
-  if (func !== 0x03 && func !== 0x04 && intervalMs !== 0) return null;
   if (ranges.length > 16) return null;
 
   let sumQty = 0;
   for (let i = 0; i < ranges.length; i++) {
     const q = ranges[i].qty | 0;
-    // Tek range ≤128; UART dilimi firmware’de ≤64’e bölünür
     if (q < 1 || q > 128) return null;
     sumQty += q;
   }
-  if (intervalMs !== 0 && (ranges.length < 1 || sumQty < 1 || sumQty > 128)) return null;
 
-  const rangeCount = intervalMs === 0 ? 0 : ranges.length;
+  let rangeCount;
+  if (opcode === 0x02) {
+    // one-shot: interval yok sayılır; en az bir range şart
+    intervalMs = 0;
+    if (ranges.length < 1 || sumQty < 1 || sumQty > 128) return null;
+    if (func !== 0x03 && func !== 0x04) return null;
+    rangeCount = ranges.length;
+  } else {
+    // continuous
+    if (intervalMs !== 0) {
+      intervalMs = Math.min(5000, Math.max(200, intervalMs));
+    }
+    if (func !== 0x03 && func !== 0x04 && intervalMs !== 0) return null;
+    if (intervalMs !== 0 && (ranges.length < 1 || sumQty < 1 || sumQty > 128)) return null;
+    rangeCount = intervalMs === 0 ? 0 : ranges.length;
+  }
+
   const packet = new Uint8Array(7 + rangeCount * 4);
-  packet[0] = 0x01;
+  packet[0] = opcode;
   packet[1] = subEpoch;
   packet[2] = slaveId & 0xff;
   packet[3] = func & 0xff;

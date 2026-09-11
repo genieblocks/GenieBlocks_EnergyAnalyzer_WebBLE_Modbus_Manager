@@ -34,10 +34,12 @@
       ? window.LiveModbus.getModeBadge()
       : { label: '—', className: 'bg-gray-100 text-gray-500' };
 
-    html += '<div class="flex items-center justify-between mb-3">';
+    html += '<div class="flex items-center justify-between mb-3 gap-2 flex-wrap">';
     html += '<div class="text-sm text-gray-500">' + device.name + ' — Cihaz Konfigürasyonu</div>';
+    html += '<div class="flex items-center gap-2">';
+    html += '<button type="button" id="ds-read-all" class="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 font-medium border-none cursor-pointer hover:bg-gray-200 transition-colors">Tümünü Oku</button>';
     html += '<span class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
-    html += '</div>';
+    html += '</div></div>';
 
     device.settings.forEach(function(group, gi) {
       html += '<div class="surface-card p-3 mb-3">';
@@ -126,6 +128,13 @@
         liveWriteGroup(device, device.settings[gi], this);
       });
     });
+
+    var readAllBtn = document.getElementById('ds-read-all');
+    if (readAllBtn) {
+      readAllBtn.addEventListener('click', function() {
+        liveReadAllSettings(device, this);
+      });
+    }
   }
 
   function flashEl(el, color) {
@@ -135,6 +144,31 @@
     setTimeout(function() { el.style.backgroundColor = ''; }, 800);
   }
 
+  function applySettingsValues(params, values) {
+    (params || []).forEach(function(param) {
+      var inputId = 'ds_' + param.reg.toString(16);
+      var el = document.getElementById(inputId);
+      if (!el || values[param.reg] === undefined) return;
+      var val = values[param.reg];
+      if (param.options) {
+        el.value = String(Math.round(val / (param.scale || 1)));
+      } else if (param.scale && param.scale !== 1) {
+        el.value = Number(val).toFixed(param.precision != null ? param.precision : 2);
+      } else {
+        el.value = Math.round(val);
+      }
+      flashEl(el, '#d1fae5');
+    });
+  }
+
+  function collectAllSettingsParams(device) {
+    var params = [];
+    (device.settings || []).forEach(function(group) {
+      (group.params || []).forEach(function(p) { params.push(p); });
+    });
+    return params;
+  }
+
   async function liveReadGroup(device, group, btn) {
     if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) {
       showToast('Canlı okuma için BLE bağlantısı gerekli');
@@ -142,22 +176,30 @@
     }
     if (btn) btn.disabled = true;
     try {
-      var values = await window.LiveModbus.readParams(device, group.params);
-      group.params.forEach(function(param) {
-        var inputId = 'ds_' + param.reg.toString(16);
-        var el = document.getElementById(inputId);
-        if (!el || values[param.reg] === undefined) return;
-        var val = values[param.reg];
-        if (param.options) {
-          el.value = String(Math.round(val / (param.scale || 1)));
-        } else if (param.scale && param.scale !== 1) {
-          el.value = Number(val).toFixed(param.precision != null ? param.precision : 2);
-        } else {
-          el.value = Math.round(val);
-        }
-        flashEl(el, '#d1fae5');
-      });
+      var reader = window.LiveModbus.readParamsOneShot || window.LiveModbus.readParams;
+      var values = await reader.call(window.LiveModbus, device, group.params);
+      applySettingsValues(group.params, values);
       showToast('Okuma başarılı');
+    } catch (e) {
+      showToast('Okuma hatası: ' + (e.message || e));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function liveReadAllSettings(device, btn) {
+    if (!window.LiveModbus || !window.LiveModbus.isBleConnected()) {
+      showToast('Canlı okuma için BLE bağlantısı gerekli');
+      return;
+    }
+    if (btn) btn.disabled = true;
+    try {
+      var params = collectAllSettingsParams(device);
+      if (!params.length) throw new Error('Okunacak ayar yok');
+      var reader = window.LiveModbus.readParamsOneShot || window.LiveModbus.readParams;
+      var values = await reader.call(window.LiveModbus, device, params);
+      applySettingsValues(params, values);
+      showToast('Tüm ayarlar okundu');
     } catch (e) {
       showToast('Okuma hatası: ' + (e.message || e));
     } finally {

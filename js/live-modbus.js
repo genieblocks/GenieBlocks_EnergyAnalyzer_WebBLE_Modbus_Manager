@@ -318,8 +318,188 @@
   }
 
   /**
-   * Ham uint16 map döner (decode etmeden). Harmonik vb. için.
+   * Bitişik range’ler (limit yok — batch paketlemek için).
    */
+  function contiguousRangesNoLimit(paramsOrRegs) {
+    var spans = [];
+    (paramsOrRegs || []).forEach(function(p) {
+      var start = typeof p === 'number' ? p : p.reg;
+      var len = typeof p === 'number' ? 1 : (p.len || 1);
+      for (var i = 0; i < len; i++) spans.push(start + i);
+    });
+    spans = spans.filter(function(v, i, a) { return a.indexOf(v) === i; }).sort(function(a, b) { return a - b; });
+    if (!spans.length) return [];
+    var full = [];
+    var start = spans[0];
+    var prev = spans[0];
+    for (var i = 1; i < spans.length; i++) {
+      var cur = spans[i];
+      if (cur === prev + 1) {
+        prev = cur;
+      } else {
+        full.push({ start: start, qty: prev - start + 1 });
+        start = cur;
+        prev = cur;
+      }
+    }
+    full.push({ start: start, qty: prev - start + 1 });
+    return full;
+  }
+
+  /**
+   * Param listesini sum(qty)<=128 / rangeCount<=16 batch’lerine böl (one-shot için).
+   * @returns {{params:object[], ranges:{start:number,qty:number}[]}[]}
+   */
+  function splitParamsIntoSubscribeBatches(params) {
+    var all = contiguousRangesNoLimit(params);
+    var batches = [];
+    var ri = 0;
+    while (ri < all.length) {
+      var batchRanges = [];
+      var sum = 0;
+      while (ri < all.length && batchRanges.length < SUBSCRIBE_MAX_RANGES) {
+        var r = all[ri];
+        if (sum + r.qty > SUBSCRIBE_MAX_QTY_SUM) {
+          if (batchRanges.length === 0) {
+            var room = SUBSCRIBE_MAX_QTY_SUM;
+            batchRanges.push({ start: r.start, qty: room });
+            all[ri] = { start: r.start + room, qty: r.qty - room };
+            sum = room;
+          }
+          break;
+        }
+        batchRanges.push({ start: r.start, qty: r.qty });
+        sum += r.qty;
+        ri++;
+      }
+      if (!batchRanges.length) break;
+
+      var batchParams = (params || []).filter(function(p) {
+        var reg = typeof p === 'number' ? p : p.reg;
+        var len = typeof p === 'number' ? 1 : (p.len || 1);
+        for (var k = 0; k < batchRanges.length; k++) {
+          var br = batchRanges[k];
+          var end = br.start + br.qty;
+          if (reg >= br.start && (reg + len - 1) < end) return true;
+          if (reg >= br.start && reg < end) return true;
+        }
+        return false;
+      });
+      batches.push({ params: batchParams.length ? batchParams : params, ranges: batchRanges });
+    }
+    return batches;
+  }
+
+  /**
+   * Subscribe opcode 0x02 one-shot: tek Stream turu. Destek yoksa Query readParams.
+   * @param {object} deviceDef
+   * @param {Array} params
+   * @returns {Promise<Object<number,number>>}
+   */
+  async function readParamsOneShot(deviceDef, params) {
+    if (!isBleConnected()) throw new Error('Bluetooth bağlantısı yok');
+    if (!params || !params.length) return {};
+
+    var supported = false;
+    try {
+      if (typeof window.probeModbusStreamSupport === 'function') {
+        supported = await window.probeModbusStreamSupport();
+      } else if (typeof window.isModbusStreamSupported === 'function') {
+        supported = window.isModbusStreamSupported();
+      }
+    } catch (e) {
+      supported = false;
+    }
+
+    if (!supported || typeof window.buildModbusSubscribePacket !== 'function' ||
+        typeof window.writeModbusSubscribe !== 'function' ||
+        typeof window.addModbusStreamListener !== 'function') {
+      return readParams(deviceDef, params);
+    }
+
+    try {
+      if (typeof window.setupModbusStreamNotify === 'function') {
+        await window.setupModbusStreamNotify();
+      }
+    } catch (e) {
+      return readParams(deviceDef, params);
+    }
+
+    var cfg = getSlaveAndFunc(deviceDef);
+    var batches = splitParamsIntoSubscribeBatches(params);
+    var decodedAll = {};
+
+    for (var b = 0; b < batches.length; b++) {
+      var batch = batches[b];
+      if (!batch.ranges.length) continue;
+
+      streamSubEpoch = (streamSubEpoch + 1) & 0xff;
+      if (streamSubEpoch === 0) streamSubEpoch = 1;
+      var epoch = streamSubEpoch;
+      var ranges = batch.ranges;
+      var qtySum = ranges.reduce(function(s, r) { return s + r.qty; }, 0);
+      var timeoutMs = Math.min(8000, Math.max(1500, 600 + qtySum * 30));
+
+      if (typeof window.setModbusActiveSubEpoch === 'function') {
+        window.setModbusActiveSubEpoch(epoch);
+      }
+
+      var snapshotPromise = new Promise(function(resolve, reject) {
+        var settled = false;
+        var timer = setTimeout(function() {
+          if (settled) return;
+          settled = true;
+          window.removeModbusStreamListener(onEvt);
+          reject(new Error('One-shot Stream timeout'));
+        }, timeoutMs);
+
+        function onEvt(evt) {
+          if (settled || !evt) return;
+          if (evt.subEpoch !== (epoch & 0xff)) return;
+          if (evt.type === 'error') {
+            settled = true;
+            clearTimeout(timer);
+            window.removeModbusStreamListener(onEvt);
+            reject(new Error(evt.message || ('Stream status 0x' + (evt.status & 0xff).toString(16))));
+            return;
+          }
+          if (evt.type !== 'snapshot') return;
+          settled = true;
+          clearTimeout(timer);
+          window.removeModbusStreamListener(onEvt);
+          resolve(evt);
+        }
+
+        window.addModbusStreamListener(onEvt);
+      });
+
+      var packet = window.buildModbusSubscribePacket({
+        opcode: 0x02,
+        subEpoch: epoch,
+        slaveId: cfg.slave,
+        func: cfg.func,
+        intervalMs: 0,
+        ranges: ranges
+      });
+      if (!packet) {
+        var qMap = await readRegisterMap(cfg, coalesceRanges(batch.params));
+        Object.assign(decodedAll, decodeParamsFromRawMap(batch.params, qMap));
+        continue;
+      }
+
+      if (typeof window.logMsg === 'function') {
+        window.logMsg('Modbus Subscribe 0x02 one-shot epoch=' + epoch +
+          ' ranges=' + ranges.length + ' qtySum=' + qtySum);
+      }
+
+      await window.writeModbusSubscribe(packet);
+      var evt = await snapshotPromise;
+      var rawMap = rawMapFromSubscribePayload(ranges, evt.registers || []);
+      Object.assign(decodedAll, decodeParamsFromRawMap(batch.params, rawMap));
+    }
+
+    return decodedAll;
+  }
   async function readRawRegs(deviceDef, start, qty) {
     var cfg = getSlaveAndFunc(deviceDef);
     var ranges = [];
@@ -504,6 +684,7 @@
     }
     try {
       var packet = window.buildModbusSubscribePacket({
+        opcode: 0x01,
         subEpoch: streamSubEpoch & 0xff,
         slaveId: 1,
         func: 0x03,
@@ -648,6 +829,7 @@
 
     var intervalMs = opts.intervalMs != null ? opts.intervalMs : 1000;
     var packet = window.buildModbusSubscribePacket({
+      opcode: 0x01,
       subEpoch: streamSubEpoch,
       slaveId: cfg.slave,
       func: cfg.func,
@@ -660,7 +842,7 @@
     }
     await window.writeModbusSubscribe(packet);
     if (typeof window.logMsg === 'function') {
-      window.logMsg('Modbus Subscribe epoch=' + streamSubEpoch + ' ranges=' + ranges.length +
+      window.logMsg('Modbus Subscribe 0x01 epoch=' + streamSubEpoch + ' ranges=' + ranges.length +
         ' qtySum=' + ranges.reduce(function(s, r) { return s + r.qty; }, 0) +
         ' interval=' + intervalMs + 'ms');
     }
@@ -809,6 +991,7 @@
     coalesceRanges: coalesceRanges,
     paramsToSubscribeRanges: paramsToSubscribeRanges,
     readParams: readParams,
+    readParamsOneShot: readParamsOneShot,
     readRawRegs: readRawRegs,
     writeRegisters: writeRegisters,
     writeParamsBulk: writeParamsBulk,
