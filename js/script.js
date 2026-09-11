@@ -1421,10 +1421,11 @@ function buildModbusSubscribePacket(opts) {
   let sumQty = 0;
   for (let i = 0; i < ranges.length; i++) {
     const q = ranges[i].qty | 0;
-    if (q < 1 || q > 64) return null;
+    // Tek range ≤128; UART dilimi firmware’de ≤64’e bölünür
+    if (q < 1 || q > 128) return null;
     sumQty += q;
   }
-  if (intervalMs !== 0 && (ranges.length < 1 || sumQty < 1 || sumQty > 64)) return null;
+  if (intervalMs !== 0 && (ranges.length < 1 || sumQty < 1 || sumQty > 128)) return null;
 
   const rangeCount = intervalMs === 0 ? 0 : ranges.length;
   const packet = new Uint8Array(7 + rangeCount * 4);

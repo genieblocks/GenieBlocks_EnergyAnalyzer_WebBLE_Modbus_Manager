@@ -317,7 +317,7 @@
 
     window.LiveModbus.startLive({
       owner: 'charts',
-      intervalMs: 500,
+      intervalMs: 750,
       getDeviceDef: function() {
         var deviceId = typeof window.getCurrentDeviceId === 'function' ? window.getCurrentDeviceId() : null;
         return deviceId ? getDeviceById(deviceId) : null;

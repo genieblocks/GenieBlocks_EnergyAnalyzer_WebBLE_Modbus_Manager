@@ -92,7 +92,7 @@
     livePolling = true;
     window.LiveModbus.startLive({
       owner: 'io-monitor',
-      intervalMs: 500,
+      intervalMs: 750,
       getDeviceDef: function() { return device; },
       getParams: function() { return collectIoParams(ios); },
       onValues: function(values) {

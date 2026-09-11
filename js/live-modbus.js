@@ -2,7 +2,7 @@
 
 (function() {
   var MAX_QTY = 32;
-  var SUBSCRIBE_MAX_QTY_SUM = 64;
+  var SUBSCRIBE_MAX_QTY_SUM = 128;
   var SUBSCRIBE_MAX_RANGES = 16;
   var DEMO_MODE_KEY = 'gb_demo_mode';
   var pollTimer = null;
@@ -177,7 +177,7 @@
   }
 
   /**
-   * Subscribe bütçesine göre range listesi: bitişik birleştir, sum(qty)<=64, rangeCount<=16.
+   * Subscribe bütçesine göre range listesi: bitişik birleştir, sum(qty)<=128, rangeCount<=16.
    * Fazlası kesilir (log).
    * @param {Array<{reg:number,len?:number}|number>} paramsOrRegs
    * @returns {{start:number,qty:number}[]}
