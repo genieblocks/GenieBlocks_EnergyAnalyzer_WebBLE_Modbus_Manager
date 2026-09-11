@@ -286,6 +286,11 @@ async function clickConnect() {
       }
     });
     document.getElementById('write_all').disabled = true;
+    const editBtn = document.getElementById('edit_gateway_modbus');
+    if (editBtn) {
+      editBtn.disabled = true;
+      editBtn.textContent = 'Düzenle';
+    }
     return;
   }
   butConnect.textContent = 'Bağlanıyor...';
@@ -297,7 +302,7 @@ async function clickConnect() {
     toggleUIConnected(true);
     logMsg('Bluetooth cihazları başarıyla bulundu ve bağlanıldı.');
     try {
-      // LoRaWAN okuma devre dışı – sadece Modbus okunuyor
+      // Bağlantıda gateway hat ayarlarını salt okunur doldur
       await readGatewayModbusSettings();
     } catch (e) {
       logMsg('Bağlantı kuruldu fakat cihazdan veri okunamadı: ' + e);
@@ -312,6 +317,11 @@ async function clickConnect() {
       }
     });
     document.getElementById('write_all').disabled = true;
+    const editBtnFail = document.getElementById('edit_gateway_modbus');
+    if (editBtnFail) {
+      editBtnFail.disabled = true;
+      editBtnFail.textContent = 'Düzenle';
+    }
   }
   butConnect.textContent = device && device.gatt && device.gatt.connected ? 'Bağlantıyı Kes' : 'Cihaza Bağlan';
 }
@@ -397,10 +407,26 @@ function isBleConnected() {
   return !!(typeof device !== 'undefined' && device && device.gatt && device.gatt.connected);
 }
 
+/** Gateway Modbus hat ayarları: varsayılan salt okunur; Düzenle ile açılır. */
+let gatewayModbusEditMode = false;
+
+function setGatewayModbusEditMode(editing) {
+  gatewayModbusEditMode = !!editing && isBleConnected();
+  document.querySelectorAll('#tab-modbus input').forEach(input => {
+    input.disabled = !gatewayModbusEditMode;
+  });
+  const writeBtn = document.getElementById('write_all');
+  const editBtn = document.getElementById('edit_gateway_modbus');
+  if (writeBtn) writeBtn.disabled = !gatewayModbusEditMode;
+  if (editBtn) {
+    editBtn.disabled = !isBleConnected();
+    editBtn.textContent = gatewayModbusEditMode ? 'İptal' : 'Düzenle';
+  }
+}
+
 function toggleUIConnected(connected) {
   const status = document.getElementById('connection-status');
   const commitBtn = document.getElementById('commit_and_restart');
-  const readBtn = document.getElementById('read_all');
   let lbl = 'Cihaza Bağlan';
   if (connected) {
     lbl = 'Bağlantıyı Kes';
@@ -412,13 +438,8 @@ function toggleUIConnected(connected) {
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) input.disabled = false;
     });
-    document.querySelectorAll('#tab-modbus input').forEach(input => {
-      input.disabled = false;
-    });
-    const writeBtn = document.getElementById('write_all');
-    if (writeBtn) writeBtn.disabled = false;
+    setGatewayModbusEditMode(false);
     if (commitBtn) commitBtn.disabled = false;
-    if (readBtn) readBtn.disabled = false;
     const mmRead = document.getElementById('mm_btn_read');
     const mmWrite = document.getElementById('mm_btn_write');
     if (mmRead) mmRead.disabled = false;
@@ -435,16 +456,20 @@ function toggleUIConnected(connected) {
         input.disabled = true;
       }
     });
-    // Modbus inputlarını da temizle
     const modbusInputs = document.querySelectorAll('#tab-modbus input');
     modbusInputs.forEach(input => {
       input.value = '';
       input.disabled = true;
     });
+    gatewayModbusEditMode = false;
     const writeBtn = document.getElementById('write_all');
+    const editBtn = document.getElementById('edit_gateway_modbus');
     if (writeBtn) writeBtn.disabled = true;
+    if (editBtn) {
+      editBtn.disabled = true;
+      editBtn.textContent = 'Düzenle';
+    }
     if (commitBtn) commitBtn.disabled = true;
-    if (readBtn) readBtn.disabled = true;
     const mmRead = document.getElementById('mm_btn_read');
     const mmWrite = document.getElementById('mm_btn_write');
     if (mmRead) mmRead.disabled = true;
@@ -1016,8 +1041,10 @@ async function writeLoRaWANKeysIfFilled() {
 async function writeAll() {
   try {
     if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
+    if (!gatewayModbusEditMode) throw 'Önce «Düzenle» ile ayarları açın.';
     await writeGatewayModbusSettings();
     await writeLoRaWANKeysIfFilled();
+    setGatewayModbusEditMode(false);
     logMsg('Ayarlar yazıldı. Kalıcı kayıt için «Cihazı Yeniden Başlat» (Commit) kullanın.');
   } catch (e) {
     logMsg('Ayarlar yazılamadı: ' + e);
@@ -2044,16 +2071,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-  const readBtn = document.getElementById('read_all');
-  if (readBtn) {
-    readBtn.addEventListener('click', async () => {
-      try {
-        // BLE GATT hat ayarları — RS-485 Modbus okuması değil
-        await readGatewayModbusSettings();
-        logMsg('Gateway Modbus hat ayarları BLE üzerinden okundu.');
-      } catch (e) {
-        logMsg('Gateway hat ayarları okunamadı: ' + e);
+  const editGatewayBtn = document.getElementById('edit_gateway_modbus');
+  if (editGatewayBtn) {
+    editGatewayBtn.addEventListener('click', async () => {
+      if (!isBleConnected()) return;
+      if (gatewayModbusEditMode) {
+        setGatewayModbusEditMode(false);
+        try {
+          await readGatewayModbusSettings();
+          logMsg('Düzenleme iptal; hat ayarları cihazdan yeniden okundu.');
+        } catch (e) {
+          logMsg('İptal sonrası okuma hatası: ' + e);
+        }
+        return;
       }
+      setGatewayModbusEditMode(true);
+      logMsg('Gateway hat ayarları düzenlenebilir. Değiştirip «Yaz»a basın.');
     });
   }
 

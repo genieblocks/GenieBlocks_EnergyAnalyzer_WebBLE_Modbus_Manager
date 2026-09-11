@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-version="v1.0.27">
+<html lang="en" data-version="v1.0.28">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -180,15 +180,15 @@
       }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-    <script src="js/device-registry.js?v=1.0.27" defer></script>
-    <script src="js/pages/dashboard.js?v=1.0.27" defer></script>
-    <script src="js/pages/charts.js?v=1.0.27" defer></script>
-    <script src="js/pages/harmonics.js?v=1.0.27" defer></script>
-    <script src="js/pages/device-settings.js?v=1.0.27" defer></script>
-    <script src="js/pages/io-monitor.js?v=1.0.27" defer></script>
-    <script src="js/router.js?v=1.0.27" defer></script>
-    <script type="module" src="js/script.js?v=1.0.27" defer></script>
-    <script src="js/live-modbus.js?v=1.0.27" defer></script>
+    <script src="js/device-registry.js?v=1.0.28" defer></script>
+    <script src="js/pages/dashboard.js?v=1.0.28" defer></script>
+    <script src="js/pages/charts.js?v=1.0.28" defer></script>
+    <script src="js/pages/harmonics.js?v=1.0.28" defer></script>
+    <script src="js/pages/device-settings.js?v=1.0.28" defer></script>
+    <script src="js/pages/io-monitor.js?v=1.0.28" defer></script>
+    <script src="js/router.js?v=1.0.28" defer></script>
+    <script type="module" src="js/script.js?v=1.0.28" defer></script>
+    <script src="js/live-modbus.js?v=1.0.28" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
     <script src="https://unpkg.com/imask"></script>
@@ -305,7 +305,7 @@
         </div>
 
         <div class="tab-content" id="tab-modbus">
-          <p class="text-gray-500 text-sm mb-4">Gateway’in RS-485 hat ayarları (BLE GATT). Analizöre Modbus paketi göndermez. Değiştirip «Yaz» ile ESP’ye yazın; kalıcı olması için «Cihazı Yeniden Başlat» kullanın.</p>
+          <p class="text-gray-500 text-sm mb-4">Gateway’in RS-485 hat ayarları (BLE GATT). Bağlantıda otomatik okunur. Değiştirmek için «Düzenle», kaydetmek için «Yaz»; kalıcı olması için «Cihazı Yeniden Başlat» kullanın.</p>
           <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
             <div class="form-row"><label for="mb_addr">Addr</label><input type="number" id="mb_addr" disabled></div>
             <div class="form-row"><label for="mb_baud">Baud</label><input type="text" id="mb_baud" disabled></div>
@@ -461,7 +461,7 @@
 
         <div class="flex items-center gap-2 mt-4">
           <button id="write_all" class="btn-action" disabled>Yaz</button>
-          <button id="read_all" type="button" class="btn-action" disabled>Oku</button>
+          <button id="edit_gateway_modbus" type="button" class="btn-action" disabled>Düzenle</button>
           <div class="flex-1"></div>
           <button id="commit_and_restart" type="button" class="btn-action" disabled>Cihazı Yeniden Başlat</button>
         </div>
@@ -515,6 +515,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.27</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.28</div>
   </body>
 </html>
