@@ -995,21 +995,35 @@ const MODBUS_SUBSCRIBE_CHAR_UUID = window.MODBUS_SUBSCRIBE_CHAR_UUID;
 const MODBUS_STREAM_CHAR_UUID = window.MODBUS_STREAM_CHAR_UUID;
 const MODBUS_BULKWRITE_CHAR_UUID = window.MODBUS_BULKWRITE_CHAR_UUID;
 
-// Modbus karakteristiklerini oku
+// Modbus gateway GATT ayarlarını oku (a401–a40a) — paralel, tek UI güncellemesi
 async function readModbusAll() {
   try {
     const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
     const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
-    document.getElementById('mb_addr').value     = (await (await service.getCharacteristic(MB_ADDR_UUID)).readValue()).getUint8(0);
-    document.getElementById('mb_baud').value     = bufferToString(await (await service.getCharacteristic(MB_BAUD_UUID)).readValue());
-    document.getElementById('mb_parity').value   = (await (await service.getCharacteristic(MB_PARITY_UUID)).readValue()).getUint8(0);
-    document.getElementById('mb_stopbits').value = (await (await service.getCharacteristic(MB_STOPBITS_UUID)).readValue()).getUint8(0);
-    document.getElementById('mb_databits').value = (await (await service.getCharacteristic(MB_DATABITS_UUID)).readValue()).getUint8(0);
-    document.getElementById('mb_timeout').value  = bufferToString(await (await service.getCharacteristic(MB_TIMEOUT_UUID)).readValue());
-    document.getElementById('mb_polling').value  = bufferToString(await (await service.getCharacteristic(MB_POLLING_UUID)).readValue());
-    document.getElementById('mb_func').value     = (await (await service.getCharacteristic(MB_FUNC_UUID)).readValue()).getUint8(0);
-    document.getElementById('mb_regstart').value = (await (await service.getCharacteristic(MB_REGSTART_UUID)).readValue()).getUint16(0, true);
-    document.getElementById('mb_reglen').value   = (await (await service.getCharacteristic(MB_REGLEN_UUID)).readValue()).getUint16(0, true);
+
+    const specs = [
+      { id: 'mb_addr', uuid: MB_ADDR_UUID, parse: (v) => String(v.getUint8(0)) },
+      { id: 'mb_baud', uuid: MB_BAUD_UUID, parse: (v) => bufferToString(v) },
+      { id: 'mb_parity', uuid: MB_PARITY_UUID, parse: (v) => String(v.getUint8(0)) },
+      { id: 'mb_stopbits', uuid: MB_STOPBITS_UUID, parse: (v) => String(v.getUint8(0)) },
+      { id: 'mb_databits', uuid: MB_DATABITS_UUID, parse: (v) => String(v.getUint8(0)) },
+      { id: 'mb_timeout', uuid: MB_TIMEOUT_UUID, parse: (v) => bufferToString(v) },
+      { id: 'mb_polling', uuid: MB_POLLING_UUID, parse: (v) => bufferToString(v) },
+      { id: 'mb_func', uuid: MB_FUNC_UUID, parse: (v) => String(v.getUint8(0)) },
+      { id: 'mb_regstart', uuid: MB_REGSTART_UUID, parse: (v) => String(v.getUint16(0, true)) },
+      { id: 'mb_reglen', uuid: MB_REGLEN_UUID, parse: (v) => String(v.getUint16(0, true)) }
+    ];
+
+    const results = await Promise.all(specs.map(async (spec) => {
+      const ch = await service.getCharacteristic(spec.uuid);
+      const view = await ch.readValue();
+      return { id: spec.id, value: spec.parse(view) };
+    }));
+
+    results.forEach(function(r) {
+      const el = document.getElementById(r.id);
+      if (el) el.value = r.value;
+    });
   } catch (e) {
     logMsg('Modbus verileri okunamadı: ' + e);
   }
