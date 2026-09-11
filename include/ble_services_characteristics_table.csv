@@ -18,21 +18,21 @@ Device Info,0000180a-0000-1000-8000-00805f9b34fb,Battery,0000a110-0000-1000-8000
 System,0000a200-0000-1000-8000-00805f9b34fb,Commit,0000a210-0000-1000-8000-00805f9b34fb,uint8,0,Reset komutu,0/1,W,Evet,Hayır,Evet,Hayır
 Pressure,0000a300-0000-1000-8000-00805f9b34fb,Value,0000a301-0000-1000-8000-00805f9b34fb,String,0.0 mbar,Basınç,-,R,Hayır,Hayır,Evet,Hayır
 Pressure,0000a300-0000-1000-8000-00805f9b34fb,Temp,0000a302-0000-1000-8000-00805f9b34fb,String,25.0 °C,Sıcaklık,-,R,Hayır,Hayır,Evet,Hayır
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Addr,0000a401-0000-1000-8000-00805f9b34fb,uint8,1,Slave adresi,1-247,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Baud,0000a402-0000-1000-8000-00805f9b34fb,String,115200,Baudrate,-,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Parity,0000a403-0000-1000-8000-00805f9b34fb,uint8,0,Parite,0-2,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,StopBits,0000a404-0000-1000-8000-00805f9b34fb,uint8,1,Stop bit,1-2,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,DataBits,0000a405-0000-1000-8000-00805f9b34fb,uint8,8,Data bit,7-8,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Timeout,0000a406-0000-1000-8000-00805f9b34fb,String,1000 ms,Zaman aşımı,-,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Polling,0000a407-0000-1000-8000-00805f9b34fb,String,1000 ms,Anket periyodu,-,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Func,0000a408-0000-1000-8000-00805f9b34fb,uint8,3,Fonksiyon kodu,1-6,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Start,0000a409-0000-1000-8000-00805f9b34fb,uint16,0,Başlangıç reg.,0-65535,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Len,0000a40a-0000-1000-8000-00805f9b34fb,uint16,2,Reg uzunluğu,1-125,R/W,Evet,Hayır,Hayır,Evet
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Query,0000a40b-0000-1000-8000-00805f9b34fb,binary,-,Ad-hoc Modbus isteği,-,W,Evet,Hayır,Evet,Hayır
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Response,0000a40c-0000-1000-8000-00805f9b34fb,binary,-,Query/BulkWrite cevabı (notify),-,R/N,Hayır,Hayır,Evet,Hayır
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Subscribe,0000a40d-0000-1000-8000-00805f9b34fb,binary,-,Abonelik: 0x01 continuous / 0x02 one-shot (sum<=128),-,W,Evet,Hayır,Evet,Hayır
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,Stream,0000a40e-0000-1000-8000-00805f9b34fb,binary,-,Snapshot stream notify (chunk max 495),-,R/N,Hayır,Hayır,Evet,Hayır
-Modbus,0000a400-0000-1000-8000-00805f9b34fb,BulkWrite,0000a40f-0000-1000-8000-00805f9b34fb,binary,-,Toplu yazma (çok range; sum qty<=64),-,W,Evet,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Addr,0000a401-0000-1000-8000-00805f9b34fb,uint8,1,Slave adresi (varsayılan; paket slaveId öncelikli),1-247,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Baud,0000a402-0000-1000-8000-00805f9b34fb,uint32 BE,9600,Baudrate (örn. 00 00 25 80),-,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Parity,0000a403-0000-1000-8000-00805f9b34fb,uint8,0,Parite 0=None 1=Even 2=Odd,0-2,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,StopBits,0000a404-0000-1000-8000-00805f9b34fb,uint8,1,Stop bit,1-2,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,DataBits,0000a405-0000-1000-8000-00805f9b34fb,uint8,8,Data bit,7-8,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Timeout,0000a406-0000-1000-8000-00805f9b34fb,uint32 BE ms,1000,Serial2.setTimeout (clamp 50-10000),50-10000,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Polling,0000a407-0000-1000-8000-00805f9b34fb,uint32 BE ms,1000,Mobil ipucu; canlı aralık Subscribe intervalMs,50-60000,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Func,0000a408-0000-1000-8000-00805f9b34fb,uint8,3,Legacy fonksiyon kodu,1-6,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Start,0000a409-0000-1000-8000-00805f9b34fb,uint16 BE,0,Legacy başlangıç reg.,0-65535,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Reg Len,0000a40a-0000-1000-8000-00805f9b34fb,uint16 BE,2,Legacy reg uzunluğu,1-125,R/W,Evet,Evet,Hayır,Evet
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Query,0000a40b-0000-1000-8000-00805f9b34fb,binary,-,Ad-hoc Modbus isteği (geriye uyumlu),-,W,Evet,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Response,0000a40c-0000-1000-8000-00805f9b34fb,binary,-,Query/BulkWrite cevabı (notify; BulkWrite hata: failRangeIndex),-,R/N,Hayır,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Subscribe,0000a40d-0000-1000-8000-00805f9b34fb,binary,-,0x01 continuous / 0x02 one-shot; sum(qty)<=128; ranges<=16; BE,-,W,Evet,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,Stream,0000a40e-0000-1000-8000-00805f9b34fb,binary,-,Snapshot stream notify (chunk max 495; DLE/2M PHY),-,R/N,Hayır,Hayır,Evet,Hayır
+Modbus,0000a400-0000-1000-8000-00805f9b34fb,BulkWrite,0000a40f-0000-1000-8000-00805f9b34fb,binary,-,Toplu yazma opcode 0x20; sum(qty)<=64; paket<=400; BE,-,W,Evet,Hayır,Evet,Hayır
 Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Heartbeat,0000a501-0000-1000-8000-00805f9b34fb,String,60 sn,Kalp atışı,-,R/W,Evet,Hayır,Hayır,Evet
 Work Mode,0000a500-0000-1000-8000-00805f9b34fb,Sensor Enable,0000a502-0000-1000-8000-00805f9b34fb,bool,1,Sensör aktif,0/1,R/W,Evet,Hayır,Hayır,Evet
 Work Mode,0000a500-0000-1000-8000-00805f9b34fb,SOS Mode,0000a503-0000-1000-8000-00805f9b34fb,bool,0,SOS modu,0/1,R/W,Evet,Hayır,Hayır,Evet

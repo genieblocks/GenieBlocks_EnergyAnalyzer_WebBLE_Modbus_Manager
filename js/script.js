@@ -412,8 +412,8 @@ let gatewayModbusEditMode = false;
 
 function setGatewayModbusEditMode(editing) {
   gatewayModbusEditMode = !!editing && isBleConnected();
-  document.querySelectorAll('#tab-modbus input').forEach(input => {
-    input.disabled = !gatewayModbusEditMode;
+  document.querySelectorAll('#tab-modbus input, #tab-modbus select').forEach(el => {
+    el.disabled = !gatewayModbusEditMode;
   });
   const writeBtn = document.getElementById('write_all');
   const editBtn = document.getElementById('edit_gateway_modbus');
@@ -456,10 +456,16 @@ function toggleUIConnected(connected) {
         input.disabled = true;
       }
     });
-    const modbusInputs = document.querySelectorAll('#tab-modbus input');
-    modbusInputs.forEach(input => {
-      input.value = '';
-      input.disabled = true;
+    const modbusFields = document.querySelectorAll('#tab-modbus input, #tab-modbus select');
+    modbusFields.forEach(el => {
+      if (el.tagName === 'SELECT') {
+        el.querySelectorAll('option[data-custom]').forEach(o => o.remove());
+        const def = el.querySelector('option[selected]') || el.options[0];
+        if (def) el.value = def.value;
+      } else {
+        el.value = '';
+      }
+      el.disabled = true;
     });
     gatewayModbusEditMode = false;
     const writeBtn = document.getElementById('write_all');
@@ -941,17 +947,29 @@ async function readValue(type) {
   }
 }
 
-function utf8BytesLimited(str, maxLen, label) {
-  const bytes = new TextEncoder().encode(str);
-  if (bytes.length === 0) throw label + ' boş olamaz.';
-  if (bytes.length > maxLen) throw label + ' en fazla ' + maxLen + ' byte olabilir.';
-  return bytes;
+function uint16BeBytes(n) {
+  const buf = new Uint8Array(2);
+  new DataView(buf.buffer).setUint16(0, n & 0xffff, false);
+  return buf;
 }
 
-function uint16LeBytes(n) {
-  const buf = new Uint8Array(2);
-  new DataView(buf.buffer).setUint16(0, n & 0xffff, true);
+function uint32BeBytes(n) {
+  const buf = new Uint8Array(4);
+  new DataView(buf.buffer).setUint32(0, n >>> 0, false);
   return buf;
+}
+
+/** GATT okuma: uint32 BE; eski string firmware için rakam çıkarımı. */
+function parseGattUint32Be(view) {
+  if (view.byteLength >= 4) return view.getUint32(0, false);
+  const s = bufferToString(view).replace(/[^\d].*$/, '');
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseGattUint16Be(view) {
+  if (view.byteLength >= 2) return view.getUint16(0, false);
+  return view.byteLength === 1 ? view.getUint8(0) : 0;
 }
 
 function hexToBytes(hex, expectedLen, label) {
@@ -968,7 +986,7 @@ function hexToBytes(hex, expectedLen, label) {
 
 /**
  * Gateway’in RS-485 hat ayarlarını BLE GATT’a yazar (a401–a40a).
- * Bu, slave’e Modbus RTU isteği göndermez; yalnızca ESP üzerindeki yapılandırmayı günceller.
+ * Çok baytlı alanlar big-endian. Slave’e Modbus RTU göndermez.
  */
 async function writeGatewayModbusSettings() {
   if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
@@ -981,16 +999,28 @@ async function writeGatewayModbusSettings() {
     return String(el.value).trim();
   };
 
+  const requireSelectOption = (id, label) => {
+    const el = document.getElementById(id);
+    if (!el || el.tagName !== 'SELECT') throw label + ' seçimi geçersiz.';
+    const v = String(el.value);
+    if (!v) throw label + ' seçilmeli.';
+    // data-custom = cihazdan gelen standart dışı; yazmadan önce listeden standart seçilmeli
+    const opt = el.selectedOptions && el.selectedOptions[0];
+    if (opt && opt.dataset.custom === '1') {
+      throw label + ': standart bir değer seçin (cihaz değeri yazılamaz).';
+    }
+    return v;
+  };
+
   const addr = parseInt(getVal('mb_addr'), 10);
   if (!(addr >= 1 && addr <= 247)) throw 'Addr 1–247 olmalı.';
-  const parity = parseInt(getVal('mb_parity'), 10);
-  if (!(parity >= 0 && parity <= 2)) throw 'Parity 0–2 olmalı.';
-  const stopbits = parseInt(getVal('mb_stopbits'), 10);
-  if (!(stopbits >= 1 && stopbits <= 2)) throw 'StopBits 1–2 olmalı.';
-  const databits = parseInt(getVal('mb_databits'), 10);
-  if (!(databits >= 7 && databits <= 8)) throw 'DataBits 7–8 olmalı.';
-  const func = parseInt(getVal('mb_func'), 10);
-  if (!(func >= 1 && func <= 6)) throw 'Func 1–6 olmalı.';
+  const baud = parseInt(requireSelectOption('mb_baud', 'Baud'), 10);
+  const parity = parseInt(requireSelectOption('mb_parity', 'Parity'), 10);
+  const stopbits = parseInt(requireSelectOption('mb_stopbits', 'StopBits'), 10);
+  const databits = parseInt(requireSelectOption('mb_databits', 'DataBits'), 10);
+  const timeout = parseInt(requireSelectOption('mb_timeout', 'Timeout'), 10);
+  const polling = parseInt(requireSelectOption('mb_polling', 'Polling'), 10);
+  const func = parseInt(requireSelectOption('mb_func', 'Func'), 10);
   const regstart = parseInt(getVal('mb_regstart'), 10);
   if (!(regstart >= 0 && regstart <= 65535)) throw 'Reg Start 0–65535 olmalı.';
   const reglen = parseInt(getVal('mb_reglen'), 10);
@@ -998,22 +1028,22 @@ async function writeGatewayModbusSettings() {
 
   const writes = [
     { uuid: MB_ADDR_UUID, data: Uint8Array.of(addr & 0xff) },
-    { uuid: MB_BAUD_UUID, data: utf8BytesLimited(getVal('mb_baud'), 6, 'Baud') },
+    { uuid: MB_BAUD_UUID, data: uint32BeBytes(baud) },
     { uuid: MB_PARITY_UUID, data: Uint8Array.of(parity & 0xff) },
     { uuid: MB_STOPBITS_UUID, data: Uint8Array.of(stopbits & 0xff) },
     { uuid: MB_DATABITS_UUID, data: Uint8Array.of(databits & 0xff) },
-    { uuid: MB_TIMEOUT_UUID, data: utf8BytesLimited(getVal('mb_timeout'), 8, 'Timeout') },
-    { uuid: MB_POLLING_UUID, data: utf8BytesLimited(getVal('mb_polling'), 8, 'Polling') },
+    { uuid: MB_TIMEOUT_UUID, data: uint32BeBytes(timeout) },
+    { uuid: MB_POLLING_UUID, data: uint32BeBytes(polling) },
     { uuid: MB_FUNC_UUID, data: Uint8Array.of(func & 0xff) },
-    { uuid: MB_REGSTART_UUID, data: uint16LeBytes(regstart) },
-    { uuid: MB_REGLEN_UUID, data: uint16LeBytes(reglen) }
+    { uuid: MB_REGSTART_UUID, data: uint16BeBytes(regstart) },
+    { uuid: MB_REGLEN_UUID, data: uint16BeBytes(reglen) }
   ];
 
   for (const w of writes) {
     const ch = await service.getCharacteristic(w.uuid);
     await ch.writeValue(w.data);
   }
-  logMsg('Gateway Modbus hat ayarları BLE üzerinden yazıldı (RS-485 trafiği yok).');
+  logMsg('Gateway Modbus hat ayarları BLE üzerinden yazıldı (uint32/uint16 BE; RS-485 trafiği yok).');
 }
 
 async function writeLoRaWANKeysIfFilled() {
@@ -1101,8 +1131,35 @@ const MODBUS_SUBSCRIBE_CHAR_UUID = window.MODBUS_SUBSCRIBE_CHAR_UUID;
 const MODBUS_STREAM_CHAR_UUID = window.MODBUS_STREAM_CHAR_UUID;
 const MODBUS_BULKWRITE_CHAR_UUID = window.MODBUS_BULKWRITE_CHAR_UUID;
 
+/** Select veya input’a değer yaz; listede yoksa geçici (cihaz) seçeneği ekle. */
+function setGatewayModbusFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const v = String(value);
+  if (el.tagName !== 'SELECT') {
+    el.value = v;
+    return;
+  }
+  el.querySelectorAll('option[data-custom]').forEach(o => o.remove());
+  let found = false;
+  for (let i = 0; i < el.options.length; i++) {
+    if (el.options[i].value === v) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v + ' (cihaz)';
+    opt.dataset.custom = '1';
+    el.insertBefore(opt, el.firstChild);
+  }
+  el.value = v;
+}
+
 /**
- * Gateway’in RS-485 hat ayarlarını BLE GATT’tan okur (a401–a40a).
+ * Gateway’in RS-485 hat ayarlarını BLE GATT’tan okur (a401–a40a, big-endian).
  * Query/Subscribe/Stream değildir; slave register okumaz.
  */
 async function readGatewayModbusSettings() {
@@ -1112,15 +1169,15 @@ async function readGatewayModbusSettings() {
 
     const specs = [
       { id: 'mb_addr', uuid: MB_ADDR_UUID, parse: (v) => String(v.getUint8(0)) },
-      { id: 'mb_baud', uuid: MB_BAUD_UUID, parse: (v) => bufferToString(v) },
+      { id: 'mb_baud', uuid: MB_BAUD_UUID, parse: (v) => String(parseGattUint32Be(v)) },
       { id: 'mb_parity', uuid: MB_PARITY_UUID, parse: (v) => String(v.getUint8(0)) },
       { id: 'mb_stopbits', uuid: MB_STOPBITS_UUID, parse: (v) => String(v.getUint8(0)) },
       { id: 'mb_databits', uuid: MB_DATABITS_UUID, parse: (v) => String(v.getUint8(0)) },
-      { id: 'mb_timeout', uuid: MB_TIMEOUT_UUID, parse: (v) => bufferToString(v) },
-      { id: 'mb_polling', uuid: MB_POLLING_UUID, parse: (v) => bufferToString(v) },
+      { id: 'mb_timeout', uuid: MB_TIMEOUT_UUID, parse: (v) => String(parseGattUint32Be(v)) },
+      { id: 'mb_polling', uuid: MB_POLLING_UUID, parse: (v) => String(parseGattUint32Be(v)) },
       { id: 'mb_func', uuid: MB_FUNC_UUID, parse: (v) => String(v.getUint8(0)) },
-      { id: 'mb_regstart', uuid: MB_REGSTART_UUID, parse: (v) => String(v.getUint16(0, true)) },
-      { id: 'mb_reglen', uuid: MB_REGLEN_UUID, parse: (v) => String(v.getUint16(0, true)) }
+      { id: 'mb_regstart', uuid: MB_REGSTART_UUID, parse: (v) => String(parseGattUint16Be(v)) },
+      { id: 'mb_reglen', uuid: MB_REGLEN_UUID, parse: (v) => String(parseGattUint16Be(v)) }
     ];
 
     const results = await Promise.all(specs.map(async (spec) => {
@@ -1130,8 +1187,7 @@ async function readGatewayModbusSettings() {
     }));
 
     results.forEach(function(r) {
-      const el = document.getElementById(r.id);
-      if (el) el.value = r.value;
+      setGatewayModbusFieldValue(r.id, r.value);
     });
   } catch (e) {
     logMsg('Gateway Modbus hat ayarları okunamadı: ' + e);
