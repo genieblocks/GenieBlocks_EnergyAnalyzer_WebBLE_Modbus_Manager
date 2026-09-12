@@ -1609,6 +1609,9 @@ document.addEventListener('DOMContentLoaded', () => {
       this.classList.add('active');
       document.getElementById('tab-' + this.dataset.tab).style.display = '';
       updateSettingsDeviceActionsVisibility(this.dataset.tab);
+      try {
+        this.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      } catch (e) { /* ignore */ }
     });
   });
   updateSettingsDeviceActionsVisibility();

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr" data-version="v1.0.43">
+<html lang="tr" data-version="v1.0.44">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -299,13 +299,32 @@
         @apply text-xs text-ink-faint shrink-0;
       }
       .settings-tabs-scroll {
-        @apply flex items-stretch overflow-x-auto mb-4 border-b-2 border-gray-200 bg-white
-               -mx-1 px-1 gap-0;
+        @apply relative flex items-stretch overflow-x-auto mb-4 border-b-2 border-gray-200 bg-white
+               -mx-4 px-4 sm:-mx-1 sm:px-1 gap-1;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;
+        scroll-snap-type: x proximity;
+        overscroll-behavior-x: contain;
       }
       .settings-tabs-scroll .tab-modern {
-        @apply shrink-0 flex-none min-w-[6.5rem] sm:min-w-[7.5rem] px-3;
+        @apply shrink-0 grow-0 basis-auto whitespace-nowrap px-3.5 py-2.5 sm:py-3
+               text-sm text-center border-b-2 border-transparent bg-transparent;
+        scroll-snap-align: start;
+        min-width: max-content;
+      }
+      .settings-tabs-scroll .tab-label-short {
+        display: inline;
+      }
+      .settings-tabs-scroll .tab-label-full {
+        display: none;
+      }
+      @media (min-width: 640px) {
+        .settings-tabs-scroll .tab-label-short {
+          display: none;
+        }
+        .settings-tabs-scroll .tab-label-full {
+          display: inline;
+        }
       }
       .timestamp {
         @apply text-green-400;
@@ -510,7 +529,7 @@
     <script src="js/pages/device-settings.js?v=1.0.42" defer></script>
     <script src="js/pages/io-monitor.js?v=1.0.36" defer></script>
     <script src="js/router.js?v=1.0.31" defer></script>
-    <script type="module" src="js/script.js?v=1.0.43" defer></script>
+    <script type="module" src="js/script.js?v=1.0.44" defer></script>
     <script src="js/live-modbus.js?v=1.0.40" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
@@ -606,10 +625,22 @@
       <main class="mx-1.5 mt-1.5 p-4 bg-white rounded-lg sm:max-w-2xl sm:mx-auto sm:mt-4 sm:rounded-xl sm:shadow-md sm:p-6">
 
         <div class="settings-tabs-scroll" role="tablist" aria-label="Ayarlar sekmeleri">
-          <button class="tab-modern py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="lorawan" style="display:none;">LoRaWAN</button>
-          <button class="tab-modern active py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="modbus">Modbus Ayarları</button>
-          <button class="tab-modern py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="manual-modbus">Manuel Modbus</button>
-          <button class="tab-modern py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="app">Gelişmiş</button>
+          <button type="button" class="tab-modern py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="lorawan" style="display:none;" aria-label="LoRaWAN" title="LoRaWAN">
+            <span class="tab-label-short">LoRaWAN</span>
+            <span class="tab-label-full">LoRaWAN</span>
+          </button>
+          <button type="button" class="tab-modern active py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="modbus" aria-label="Modbus Ayarları" title="Modbus Ayarları">
+            <span class="tab-label-short">Modbus</span>
+            <span class="tab-label-full">Modbus Ayarları</span>
+          </button>
+          <button type="button" class="tab-modern py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="manual-modbus" aria-label="Manuel Modbus" title="Manuel Modbus">
+            <span class="tab-label-short">Manuel</span>
+            <span class="tab-label-full">Manuel Modbus</span>
+          </button>
+          <button type="button" class="tab-modern py-2.5 sm:py-3 text-center text-gray-400 font-medium border-b-2 border-transparent cursor-pointer transition-colors hover:text-brand" data-tab="app" aria-label="Gelişmiş" title="Gelişmiş">
+            <span class="tab-label-short">Gelişmiş</span>
+            <span class="tab-label-full">Gelişmiş</span>
+          </button>
         </div>
 
         <div class="tab-content" id="tab-lorawan" style="display:none;">
@@ -973,6 +1004,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.43</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.44</div>
   </body>
 </html>
