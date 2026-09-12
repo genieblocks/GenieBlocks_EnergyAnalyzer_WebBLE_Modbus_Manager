@@ -1752,7 +1752,10 @@ async function readGatewayModbusSettings() {
 function setDeviceInfoField(id, value) {
   const el = document.getElementById(id);
   const text = (value != null && value !== '') ? String(value) : '—';
-  if (el) el.textContent = text;
+  if (el) {
+    el.textContent = text;
+    el.title = text === '—' ? '' : text;
+  }
   if (id === 'di-sw') {
     const fwSw = document.getElementById('firmware-current-sw');
     if (fwSw) fwSw.textContent = text;

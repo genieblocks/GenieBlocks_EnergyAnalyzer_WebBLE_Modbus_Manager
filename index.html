@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr" data-version="v1.0.40">
+<html lang="tr" data-version="v1.0.43">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -31,16 +31,20 @@
         @apply flex flex-row items-center gap-2 mb-2;
       }
       .form-row label {
-        @apply font-medium text-sm min-w-[7.5rem] sm:min-w-[9rem] shrink-0 text-ink-muted;
+        @apply font-medium text-sm w-[7.5rem] sm:w-[9.5rem] shrink-0 text-ink-muted;
       }
+      /* İleride açılabilir yardım ikonu — şimdilik gizli (hizayı bozmasın) */
       .form-row .form-hint {
-        @apply inline-flex items-center justify-center ml-1 w-3.5 h-3.5 rounded-full
-               text-[0.625rem] font-bold leading-none border border-current opacity-60
-               cursor-help align-middle;
+        display: none !important;
       }
       .form-row input,
       .form-row select {
         @apply flex-1 min-w-0 px-2.5 py-1.5 border border-gray-300 rounded-md text-base bg-white;
+      }
+      .form-row input#device_eui,
+      .form-row input#app_eui,
+      .form-row input#app_key {
+        @apply font-mono text-sm tracking-wide overflow-x-auto;
       }
       .btn-primary,
       .btn-action {
@@ -214,6 +218,27 @@
         animation: field-busy-pulse 0.9s ease-in-out infinite;
         pointer-events: none;
       }
+      .ds-invalid {
+        border-color: #DC2626 !important;
+        background-color: #FEF2F2 !important;
+        box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.25);
+      }
+      .ds-field-row {
+        @apply flex items-center justify-between py-1.5 border-b border-gray-100 gap-3;
+      }
+      .ds-field-row:last-child {
+        border-bottom-width: 0;
+      }
+      .ds-field-label {
+        @apply text-xs text-ink-muted shrink min-w-0 flex-1 pr-1;
+      }
+      .ds-field {
+        @apply box-border shrink-0 w-[9.5rem] sm:w-[11rem] px-2 py-1.5 border border-gray-300 rounded-md
+               text-sm bg-white text-right text-ink;
+      }
+      select.ds-field {
+        @apply appearance-auto;
+      }
       .file-input-label.disabled {
         @apply opacity-60 cursor-not-allowed;
       }
@@ -347,16 +372,26 @@
         @apply text-xs text-gray-500 mt-2.5 mb-0 leading-relaxed border-t border-gray-200 pt-2.5;
       }
       .adv-kv-grid {
-        @apply grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm mt-2.5;
+        @apply grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2.5;
       }
       .adv-kv {
-        @apply flex justify-between gap-2 min-w-0;
+        @apply flex justify-between items-baseline gap-2 min-w-0;
       }
       .adv-kv-label {
         @apply text-gray-500 shrink-0;
       }
       .adv-kv-value {
-        @apply font-mono text-gray-800 truncate text-right;
+        @apply font-mono text-gray-800 text-right min-w-0 break-all;
+      }
+      .adv-kv-span {
+        @apply sm:col-span-2 flex-col items-stretch gap-0.5;
+      }
+      .adv-kv-span .adv-kv-label {
+        @apply text-xs;
+      }
+      .adv-kv-span .adv-kv-value {
+        @apply text-left text-xs sm:text-sm tracking-wider w-full px-2 py-1.5 rounded-md
+               bg-white border border-gray-200 select-all;
       }
       .io-toggle {
         @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-0 p-0.5
@@ -472,10 +507,10 @@
     <script src="js/pages/dashboard.js?v=1.0.40" defer></script>
     <script src="js/pages/charts.js?v=1.0.39" defer></script>
     <script src="js/pages/harmonics.js?v=1.0.36" defer></script>
-    <script src="js/pages/device-settings.js?v=1.0.36" defer></script>
+    <script src="js/pages/device-settings.js?v=1.0.42" defer></script>
     <script src="js/pages/io-monitor.js?v=1.0.36" defer></script>
     <script src="js/router.js?v=1.0.31" defer></script>
-    <script type="module" src="js/script.js?v=1.0.40" defer></script>
+    <script type="module" src="js/script.js?v=1.0.43" defer></script>
     <script src="js/live-modbus.js?v=1.0.40" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.9/jquery.inputmask.min.js"></script>
@@ -580,15 +615,15 @@
         <div class="tab-content" id="tab-lorawan" style="display:none;">
           <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
             <div class="form-row">
-              <label for="device_eui" title="Cihaz EUI (16 hex)">Device EUI<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="device_eui" title="Cihaz EUI (16 hex)">Device EUI</label>
               <input type="text" id="device_eui" name="device_eui" autocomplete="off" disabled maxlength="16">
             </div>
             <div class="form-row">
-              <label for="app_eui" title="Uygulama EUI / Join EUI (16 hex)">Uygulama EUI<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="app_eui" title="Uygulama EUI / Join EUI (16 hex)">Uygulama EUI</label>
               <input type="text" id="app_eui" name="app_eui" autocomplete="off" disabled maxlength="16">
             </div>
             <div class="form-row">
-              <label for="app_key" title="Uygulama anahtarı (32 hex)">Uygulama anahtarı<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="app_key" title="Uygulama anahtarı (32 hex)">Uygulama anahtarı</label>
               <input type="text" id="app_key" name="app_key" autocomplete="off" disabled maxlength="32">
             </div>
             <div class="form-row">
@@ -596,15 +631,15 @@
               <input type="text" id="platform" name="platform" autocomplete="off" disabled>
             </div>
             <div class="form-row">
-              <label for="freq" title="Çalışma frekans bandı">Frekans<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="freq" title="Çalışma frekans bandı">Frekans</label>
               <input type="text" id="freq" name="freq" autocomplete="off" disabled>
             </div>
             <div class="form-row">
-              <label for="pckpo" title="Packet Policy — paket gönderim politikası">Paket politikası<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="pckpo" title="Packet Policy — paket gönderim politikası">Paket politikası</label>
               <input type="text" id="pckpo" name="pckpo" autocomplete="off" disabled>
             </div>
             <div class="form-row">
-              <label for="adr" title="Adaptive Data Rate — uyarlamalı veri hızı">ADR<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="adr" title="Adaptive Data Rate — uyarlamalı veri hızı">ADR</label>
               <input type="text" id="adr" name="adr" autocomplete="off" disabled>
             </div>
           </form>
@@ -614,11 +649,11 @@
           <p class="text-gray-500 text-sm mb-4">Gateway RS-485 hat ayarları. Bağlantıda otomatik okunur. Akış: Düzenle → Yaz → Kaydet ve Yeniden Başlat.</p>
           <form class="flex flex-col gap-4" autocomplete="off" onsubmit="return false;">
             <div class="form-row">
-              <label for="mb_addr" title="Modbus RTU slave adresi (1–247)">Slave adresi<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_addr" title="Modbus RTU slave adresi (1–247)">Slave adresi</label>
               <select id="mb_addr" disabled></select>
             </div>
             <div class="form-row">
-              <label for="mb_baud" title="Seri hat hızı (baud)">Baud hızı<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_baud" title="Seri hat hızı (baud)">Baud hızı</label>
               <select id="mb_baud" disabled>
                 <option value="1200">1200</option>
                 <option value="2400">2400</option>
@@ -635,7 +670,7 @@
               </select>
             </div>
             <div class="form-row">
-              <label for="mb_parity" title="Seri hat parite biti">Parite<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_parity" title="Seri hat parite biti">Parite</label>
               <select id="mb_parity" disabled>
                 <option value="0" selected>Yok (0)</option>
                 <option value="1">Çift (1)</option>
@@ -643,21 +678,21 @@
               </select>
             </div>
             <div class="form-row">
-              <label for="mb_stopbits" title="Stop bit sayısı">Stop biti<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_stopbits" title="Stop bit sayısı">Stop biti</label>
               <select id="mb_stopbits" disabled>
                 <option value="1" selected>1</option>
                 <option value="2">2</option>
               </select>
             </div>
             <div class="form-row">
-              <label for="mb_databits" title="Veri bit sayısı">Veri biti<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_databits" title="Veri bit sayısı">Veri biti</label>
               <select id="mb_databits" disabled>
                 <option value="7">7</option>
                 <option value="8" selected>8</option>
               </select>
             </div>
             <div class="form-row">
-              <label for="mb_timeout" title="Modbus yanıt bekleme süresi">Zaman aşımı (ms)<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_timeout" title="Modbus yanıt bekleme süresi">Zaman aşımı (ms)</label>
               <select id="mb_timeout" disabled>
                 <option value="50">50</option>
                 <option value="100">100</option>
@@ -672,7 +707,7 @@
               </select>
             </div>
             <div class="form-row">
-              <label for="mb_polling" title="Canlı okuma döngü aralığı">Polling (ms)<span class="form-hint" aria-hidden="true">?</span></label>
+              <label for="mb_polling" title="Canlı okuma döngü aralığı">Polling (ms)</label>
               <select id="mb_polling" disabled>
                 <option value="50">50</option>
                 <option value="100">100</option>
@@ -745,7 +780,10 @@
                 <div class="adv-kv"><span class="adv-kv-label">Model</span><span id="di-model" class="adv-kv-value">—</span></div>
                 <div class="adv-kv"><span class="adv-kv-label">Yazılım</span><span id="di-sw" class="adv-kv-value">—</span></div>
                 <div class="adv-kv"><span class="adv-kv-label">Donanım</span><span id="di-hw" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Device EUI</span><span id="di-eui" class="adv-kv-value">—</span></div>
+                <div class="adv-kv adv-kv-span">
+                  <span class="adv-kv-label">Device EUI</span>
+                  <span id="di-eui" class="adv-kv-value" title="">—</span>
+                </div>
                 <div class="adv-kv"><span class="adv-kv-label">LoRaWAN sürümü</span><span id="di-lorawan" class="adv-kv-value">—</span></div>
                 <div class="adv-kv"><span class="adv-kv-label">Çalışma modu</span><span id="di-workmode" class="adv-kv-value">—</span></div>
                 <div class="adv-kv"><span class="adv-kv-label">Konum</span><span id="di-geoloc" class="adv-kv-value">—</span></div>
@@ -935,6 +973,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.40</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.43</div>
   </body>
 </html>

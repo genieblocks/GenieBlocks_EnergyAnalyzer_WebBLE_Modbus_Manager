@@ -15,6 +15,98 @@
     return { device: device, id: deviceId };
   }
 
+  /** Adım: scale / precision / tip. */
+  function getParamStep(param) {
+    if (param.scale != null && param.scale > 0 && param.scale < 1) return param.scale;
+    if (param.precision != null && param.precision > 0) return Math.pow(10, -param.precision);
+    return 1;
+  }
+
+  function formatParamRangeHint(param) {
+    if (param.options) return 'Listeden seçin';
+    var parts = [];
+    if (param.min !== undefined && param.max !== undefined) parts.push(param.min + '–' + param.max);
+    else if (param.min !== undefined) parts.push('≥ ' + param.min);
+    else if (param.max !== undefined) parts.push('≤ ' + param.max);
+    var step = getParamStep(param);
+    if (step < 1) parts.push('adım ' + step);
+    return parts.join(' · ');
+  }
+
+  /**
+   * Registry min/max/options’a göre görünen değeri doğrula.
+   * @returns {{ ok:boolean, message?:string, value?:number }}
+   */
+  function validateParamValue(param, rawStr) {
+    var label = param.name || 'Değer';
+    if (param.options) {
+      if (rawStr === '' || rawStr == null) {
+        return { ok: false, message: label + ': değer seçin' };
+      }
+      var key = String(rawStr);
+      if (param.options[key] === undefined) {
+        return { ok: false, message: label + ': geçersiz seçim' };
+      }
+      return { ok: true, value: parseInt(key, 10) };
+    }
+
+    var s = String(rawStr == null ? '' : rawStr).trim().replace(',', '.');
+    if (s === '' || s === '—') {
+      return { ok: false, message: label + ': değer girin' };
+    }
+    var num = Number(s);
+    if (!isFinite(num)) {
+      return { ok: false, message: label + ': sayısal değer gerekli' };
+    }
+
+    var step = getParamStep(param);
+    if (step >= 1 && Math.abs(num - Math.round(num)) > 1e-9) {
+      return { ok: false, message: label + ': tam sayı olmalı' };
+    }
+    if (param.min !== undefined && num < param.min) {
+      return { ok: false, message: label + ': en az ' + param.min };
+    }
+    if (param.max !== undefined && num > param.max) {
+      return { ok: false, message: label + ': en fazla ' + param.max };
+    }
+    return { ok: true, value: num };
+  }
+
+  function setFieldValidity(el, ok) {
+    if (!el) return;
+    if (ok) {
+      el.classList.remove('ds-invalid');
+      el.removeAttribute('aria-invalid');
+    } else {
+      el.classList.add('ds-invalid');
+      el.setAttribute('aria-invalid', 'true');
+    }
+  }
+
+  function bindParamValidation(param) {
+    var el = document.getElementById('ds_' + param.reg.toString(16));
+    if (!el) return;
+    if (param.options) {
+      el.addEventListener('change', function() {
+        var r = validateParamValue(param, el.value);
+        setFieldValidity(el, r.ok || el.value === '');
+      });
+      return;
+    }
+    function check(strictEmpty) {
+      var v = el.value.trim();
+      if (!strictEmpty && v === '') {
+        setFieldValidity(el, true);
+        return;
+      }
+      var r = validateParamValue(param, el.value);
+      setFieldValidity(el, r.ok);
+    }
+    el.addEventListener('input', function() { check(false); });
+    el.addEventListener('change', function() { check(true); });
+    el.addEventListener('blur', function() { check(true); });
+  }
+
   function renderDeviceSettings(container) {
     var info = getDevice();
 
@@ -56,11 +148,19 @@
 
       group.params.forEach(function(param) {
         var inputId = 'ds_' + param.reg.toString(16);
-        html += '<div class="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-b-0 gap-2">';
-        html += '<label class="text-xs text-gray-600 shrink-0" for="' + inputId + '">' + param.name + '</label>';
+        var rangeHint = formatParamRangeHint(param);
+        var writable = param.writable !== false;
+        html += '<div class="ds-field-row">';
+        html += '<label class="ds-field-label" for="' + inputId + '">';
+        html += '<span class="block truncate">' + param.name + '</span>';
+        if (rangeHint) html += '<span class="block text-[10px] text-ink-faint font-normal mt-0.5">' + rangeHint + '</span>';
+        html += '</label>';
 
         if (param.options) {
-          html += '<select id="' + inputId + '" class="px-2 py-1 border border-gray-300 rounded text-sm bg-white min-w-[120px] text-right">';
+          html += '<select id="' + inputId + '" class="ds-field"';
+          html += ' title="' + (rangeHint || '').replace(/"/g, '&quot;') + '"';
+          if (!writable) html += ' disabled';
+          html += '>';
           var keys = Object.keys(param.options);
           keys.forEach(function(key, ki) {
             var selected = (useDemo && ki === 0) ? ' selected' : '';
@@ -71,12 +171,16 @@
           }
           html += '</select>';
         } else {
-          var demoVal = useDemo ? (param.min || 0) : '';
-          html += '<input type="number" id="' + inputId + '" value="' + demoVal + '" placeholder="—"';
+          var demoVal = useDemo ? (param.min != null ? param.min : 0) : '';
+          var step = getParamStep(param);
+          html += '<input type="number" id="' + inputId + '" class="ds-field" value="' + demoVal + '" placeholder="—"';
+          html += ' inputmode="decimal"';
           if (param.min !== undefined) html += ' min="' + param.min + '"';
           if (param.max !== undefined) html += ' max="' + param.max + '"';
-          if (param.scale && param.scale < 1) html += ' step="' + param.scale + '"';
-          html += ' class="px-2 py-1 border border-gray-300 rounded text-sm w-24 text-right">';
+          html += ' step="' + step + '"';
+          html += ' title="' + (rangeHint || '').replace(/"/g, '&quot;') + '"';
+          if (!writable) html += ' readonly disabled';
+          html += '>';
         }
 
         html += '</div>';
@@ -103,6 +207,12 @@
     }
 
     container.innerHTML = html;
+
+    device.settings.forEach(function(group) {
+      group.params.forEach(function(param) {
+        bindParamValidation(param);
+      });
+    });
 
     if (device.commands && device.commands.length) {
       container.querySelectorAll('.ds-cmd').forEach(function(btn) {
@@ -179,6 +289,7 @@
       } else {
         el.value = Math.round(val);
       }
+      setFieldValidity(el, true);
       flashEl(el, '#d1fae5');
     });
   }
@@ -250,6 +361,13 @@
         var inputId = 'ds_' + param.reg.toString(16);
         var el = document.getElementById(inputId);
         if (!el) continue;
+        var check = validateParamValue(param, el.value);
+        if (!check.ok) {
+          setFieldValidity(el, false);
+          try { el.focus(); } catch (fe) { /* ignore */ }
+          throw new Error(check.message);
+        }
+        setFieldValidity(el, true);
         var raw = window.LiveModbus.encodeParamRaw(param, el.value);
         if (raw === null) throw new Error('Geçersiz değer: ' + param.name);
         items.push({ reg: param.reg, value: raw });
@@ -311,13 +429,15 @@
     initDeviceSettings();
     if (window.LiveModbus && window.LiveModbus.addDemoModeListener) {
       window.LiveModbus.addDemoModeListener(function() {
-        if (typeof window.refreshDeviceSettings === 'function') window.refreshDeviceSettings();
+        if (typeof window.getCurrentPageId === 'function' && window.getCurrentPageId() === 'device-settings') {
+          window.refreshDeviceSettings();
+        }
       });
     }
     if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
       window.LiveModbus.addConnectionListener(function() {
         if (typeof window.getCurrentPageId === 'function' && window.getCurrentPageId() === 'device-settings') {
-          if (typeof window.refreshDeviceSettings === 'function') window.refreshDeviceSettings();
+          window.refreshDeviceSettings();
         }
       });
     }
