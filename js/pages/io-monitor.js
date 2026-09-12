@@ -212,20 +212,25 @@
     if (!info) {
       var deviceId = typeof window.getCurrentDeviceId === 'function' ? window.getCurrentDeviceId() : null;
       if (!deviceId || deviceId === 'manual') {
-        container.innerHTML =
-          '<div class="flex flex-col items-center justify-center py-12 text-gray-400 text-sm">' +
-            '<p>I/O izleme için lütfen Dashboard\'dan bir cihaz seçin.</p>' +
-          '</div>';
+        container.innerHTML = typeof emptyStateHtml === 'function'
+          ? emptyStateHtml({
+              icon: 'io',
+              title: 'I/O için model seçin',
+              desc: 'Header’dan I/O tanımlı bir analizör seçin.',
+              actions: [{ action: 'focus-device', label: 'Model seç', primary: true }]
+            })
+          : '<p class="text-sm text-gray-400 text-center py-12">I/O için cihaz seçin.</p>';
       } else {
-        container.innerHTML =
-          '<div class="flex flex-col items-center justify-center py-12 text-gray-400 text-sm">' +
-            '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-3 text-gray-300">' +
-              '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>' +
-            '</svg>' +
-            '<p><strong>I/O destekli cihaz seçin.</strong></p>' +
-            '<p class="mt-1 text-xs">Seçili cihazda dijital/analog giriş-çıkış tanımlı değil.</p>' +
-          '</div>';
+        container.innerHTML = typeof emptyStateHtml === 'function'
+          ? emptyStateHtml({
+              icon: 'io',
+              title: 'I/O bu cihazda yok',
+              desc: 'Seçili analizörde dijital/analog giriş-çıkış tanımlı değil.',
+              actions: [{ action: 'focus-device', label: 'Başka model seç' }]
+            })
+          : '<p class="text-sm text-gray-400 text-center py-12">I/O destekli cihaz seçin.</p>';
       }
+      if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(container);
       return;
     }
 

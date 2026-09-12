@@ -88,11 +88,18 @@
     var device = getDevice();
 
     if (!device) {
-      container.innerHTML =
-        '<div class="flex flex-col items-center justify-center py-12 text-gray-400 text-sm">' +
-          '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-3 text-gray-300"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="8" width="4" height="13"/><rect x="17" y="4" width="4" height="17"/></svg>' +
-          '<p>Harmonik analizi için lütfen Dashboard\'dan<br><strong>harmonik destekli bir cihaz</strong> seçin.</p>' +
-        '</div>';
+      container.innerHTML = typeof emptyStateHtml === 'function'
+        ? emptyStateHtml({
+            icon: 'harmonics',
+            title: 'Harmonik destekli cihaz seçin',
+            desc: 'Bu sayfa yalnızca harmonik tanımlı modellerde görünür içerik sunar.',
+            actions: [
+              { action: 'focus-device', label: 'Model seç', primary: true },
+              { action: 'dashboard', label: 'Analizör’e dön' }
+            ]
+          })
+        : '<p class="text-sm text-gray-400 text-center py-12">Harmonik destekli cihaz seçin.</p>';
+      if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(container);
       return;
     }
 

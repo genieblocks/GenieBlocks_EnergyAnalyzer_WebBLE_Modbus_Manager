@@ -118,11 +118,302 @@ const APPKEY_CHAR_UUID = '0000a203-0000-1000-8000-00805f9b34fb';
 const SYSTEM_SERVICE_UUID = '0000a200-0000-1000-8000-00805f9b34fb';
 const COMMIT_CHAR_UUID = '0000a210-0000-1000-8000-00805f9b34fb';
 
+// Device Info (GATT 0x180A) — include/ble_services_characteristics_table.csv
+const DEVICE_INFO_SERVICE_UUID = '0000180a-0000-1000-8000-00805f9b34fb';
+const DI_MODEL_UUID = '0000a102-0000-1000-8000-00805f9b34fb';
+const DI_EUI_UUID = '0000a109-0000-1000-8000-00805f9b34fb';
+const DI_SW_UUID = '0000a10a-0000-1000-8000-00805f9b34fb';
+const DI_HW_UUID = '0000a10b-0000-1000-8000-00805f9b34fb';
+const DI_LORAWAN_UUID = '0000a10c-0000-1000-8000-00805f9b34fb';
+const DI_WORKMODE_UUID = '0000a10d-0000-1000-8000-00805f9b34fb';
+const DI_GEOLOC_UUID = '0000a10e-0000-1000-8000-00805f9b34fb';
+const DI_CLASS_UUID = '0000a10f-0000-1000-8000-00805f9b34fb';
+const DI_BATTERY_UUID = '0000a110-0000-1000-8000-00805f9b34fb';
+
 // Yeni read-only karakteristik UUID'ler
 const PLATFORM_CHAR_UUID = '0000a204-0000-1000-8000-00805f9b34fb';
 const FREQ_CHAR_UUID = '0000a205-0000-1000-8000-00805f9b34fb';
 const PCKPO_CHAR_UUID = '0000a206-0000-1000-8000-00805f9b34fb';
 const ADR_CHAR_UUID = '0000a207-0000-1000-8000-00805f9b34fb';
+
+/** LoRaWAN Ayarlar sekmesi UI SSOT — default kapalı; localStorage. */
+const LORAWAN_UI_STORAGE_KEY = 'gb_lorawan_ui_enabled';
+/** Bu BLE oturumunda optionalServices’e LoRaWAN eklendi mi (GATT erişimi için). */
+let lorawanGattSessionActive = false;
+
+function isLorawanUiEnabled() {
+  try {
+    return localStorage.getItem(LORAWAN_UI_STORAGE_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function setLorawanUiEnabled(on) {
+  try {
+    localStorage.setItem(LORAWAN_UI_STORAGE_KEY, on ? '1' : '0');
+  } catch (e) { /* ignore */ }
+}
+
+function setLorawanUiHintVisible(show) {
+  const hint = document.getElementById('lorawan-ui-hint');
+  if (hint) hint.classList.toggle('hidden', !show);
+}
+
+function applyLorawanUiVisibility() {
+  const enabled = isLorawanUiEnabled();
+  const tabBtn = document.querySelector('#page-settings .tab-modern[data-tab="lorawan"]');
+  if (tabBtn) {
+    tabBtn.style.display = enabled ? '' : 'none';
+  }
+  const toggle = document.getElementById('lorawan-ui-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+  }
+  if (!enabled) {
+    setLorawanUiHintVisible(false);
+    const active = getActiveSettingsTab();
+    if (active === 'lorawan') {
+      const modbusBtn = document.querySelector('#page-settings .tab-modern[data-tab="modbus"]');
+      if (modbusBtn) modbusBtn.click();
+      else {
+        document.querySelectorAll('#page-settings .tab-modern').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('#page-settings .tab-content').forEach(function(tc) { tc.style.display = 'none'; });
+        const modbusTab = document.getElementById('tab-modbus');
+        const modbusNav = document.querySelector('#page-settings .tab-modern[data-tab="modbus"]');
+        if (modbusNav) modbusNav.classList.add('active');
+        if (modbusTab) modbusTab.style.display = '';
+        if (typeof updateSettingsDeviceActionsVisibility === 'function') {
+          updateSettingsDeviceActionsVisibility('modbus');
+        }
+      }
+    }
+  } else if (isBleConnected() && !lorawanGattSessionActive) {
+    setLorawanUiHintVisible(true);
+  } else {
+    setLorawanUiHintVisible(false);
+  }
+}
+
+function initLorawanUiToggle() {
+  const toggle = document.getElementById('lorawan-ui-toggle');
+  applyLorawanUiVisibility();
+  if (!toggle || toggle.dataset.bound === '1') return;
+  toggle.dataset.bound = '1';
+  toggle.addEventListener('click', async function() {
+    const next = !isLorawanUiEnabled();
+    setLorawanUiEnabled(next);
+    applyLorawanUiVisibility();
+    if (next) {
+      logMsg('LoRaWAN yapılandırması açıldı.');
+      if (isBleConnected() && !lorawanGattSessionActive) {
+        setLorawanUiHintVisible(true);
+        logMsg('LoRaWAN GATT için bağlantıyı kesip yeniden bağlanın.');
+      } else if (isBleConnected() && lorawanGattSessionActive && typeof readLoRaWANAll === 'function') {
+        try { await readLoRaWANAll(); } catch (e) { logFail('LoRaWAN okuma', e); }
+      }
+    } else {
+      logMsg('LoRaWAN yapılandırması kapatıldı.');
+    }
+  });
+}
+
+window.isLorawanUiEnabled = isLorawanUiEnabled;
+window.applyLorawanUiVisibility = applyLorawanUiVisibility;
+
+/**
+ * Bağlantı süreci UI SSOT — header altı bant + durum noktası + buton metni.
+ * Aşamalar: picking → gatt → notify → gateway → live → ready | error | clear
+ */
+const ConnectProgress = (function() {
+  let liveWaitResolve = null;
+  let hideTimer = null;
+
+  function els() {
+    return {
+      bar: document.getElementById('connect-progress'),
+      text: document.getElementById('connect-progress-text'),
+      status: document.getElementById('connection-status'),
+      btn: document.getElementById('butConnect')
+    };
+  }
+
+  function setStatusDot(mode) {
+    const status = els().status;
+    const statusText = document.getElementById('connection-status-text');
+    if (!status) return;
+    status.classList.remove('connected', 'disconnected', 'connecting');
+    if (statusText) statusText.classList.remove('is-ok', 'is-warn', 'is-off');
+    let label = 'Bağlı değil';
+    let textClass = 'is-off';
+    if (mode === 'connected') {
+      status.classList.add('connected');
+      label = 'Bağlı';
+      textClass = 'is-ok';
+    } else if (mode === 'connecting') {
+      status.classList.add('connecting');
+      label = 'Bağlanıyor';
+      textClass = 'is-warn';
+    } else {
+      status.classList.add('disconnected');
+    }
+    status.title = label;
+    status.setAttribute('aria-label', label);
+    if (statusText) {
+      statusText.textContent = label;
+      statusText.classList.add(textClass);
+    }
+  }
+
+  function show(phase, message, btnLabel) {
+    const ui = els();
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    if (ui.bar) {
+      ui.bar.hidden = false;
+      ui.bar.classList.toggle('is-ready', phase === 'ready');
+    }
+    if (ui.text) ui.text.textContent = message;
+    if (ui.btn && btnLabel) ui.btn.textContent = btnLabel;
+    if (phase === 'ready') setStatusDot('connected');
+    else if (phase === 'error' || phase === 'clear') { /* leave to caller */ }
+    else setStatusDot('connecting');
+  }
+
+  function hide() {
+    const ui = els();
+    if (ui.bar) {
+      ui.bar.hidden = true;
+      ui.bar.classList.remove('is-ready');
+    }
+    if (liveWaitResolve) {
+      const r = liveWaitResolve;
+      liveWaitResolve = null;
+      r();
+    }
+  }
+
+  function clear() {
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    hide();
+  }
+
+  function signalFirstLiveData() {
+    if (liveWaitResolve) {
+      const r = liveWaitResolve;
+      liveWaitResolve = null;
+      r();
+    }
+  }
+
+  function waitForFirstLiveData(timeoutMs) {
+    return new Promise(function(resolve) {
+      if (liveWaitResolve) {
+        liveWaitResolve();
+        liveWaitResolve = null;
+      }
+      liveWaitResolve = resolve;
+      setTimeout(function() {
+        if (liveWaitResolve === resolve) {
+          liveWaitResolve = null;
+          resolve();
+        }
+      }, timeoutMs || 10000);
+    });
+  }
+
+  function finishReady(message) {
+    show('ready', message || 'Hazır', 'Bağlantıyı Kes');
+    hideTimer = setTimeout(function() {
+      hideTimer = null;
+      const ui = els();
+      if (ui.bar) {
+        ui.bar.hidden = true;
+        ui.bar.classList.remove('is-ready');
+      }
+    }, 900);
+  }
+
+  return {
+    show: show,
+    hide: hide,
+    clear: clear,
+    setStatusDot: setStatusDot,
+    signalFirstLiveData: signalFirstLiveData,
+    waitForFirstLiveData: waitForFirstLiveData,
+    finishReady: finishReady
+  };
+})();
+window.ConnectProgress = ConnectProgress;
+
+/** Beklenmeyen kopmada sticky banner + Yeniden bağlan. */
+const ReconnectBanner = (function() {
+  let intentional = false;
+
+  function els() {
+    return {
+      bar: document.getElementById('reconnect-banner'),
+      text: document.getElementById('reconnect-banner-text'),
+      btn: document.getElementById('reconnect-btn'),
+      dismiss: document.getElementById('reconnect-dismiss')
+    };
+  }
+
+  function show(message) {
+    const ui = els();
+    if (ui.text) ui.text.textContent = message || 'Bluetooth bağlantısı koptu.';
+    if (ui.bar) ui.bar.hidden = false;
+  }
+
+  function hide() {
+    const ui = els();
+    if (ui.bar) ui.bar.hidden = true;
+  }
+
+  function markIntentional() {
+    intentional = true;
+  }
+
+  function consumeIntentional() {
+    const was = intentional;
+    intentional = false;
+    return was;
+  }
+
+  function bind() {
+    const ui = els();
+    if (ui.btn && !ui.btn.dataset.bound) {
+      ui.btn.dataset.bound = '1';
+      ui.btn.addEventListener('click', function() {
+        hide();
+        if (typeof clickConnect === 'function') clickConnect();
+      });
+    }
+    if (ui.dismiss && !ui.dismiss.dataset.bound) {
+      ui.dismiss.dataset.bound = '1';
+      ui.dismiss.addEventListener('click', hide);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
+
+  return {
+    show: show,
+    hide: hide,
+    markIntentional: markIntentional,
+    consumeIntentional: consumeIntentional
+  };
+})();
+window.ReconnectBanner = ReconnectBanner;
 
 /**
  * @name connect
@@ -130,17 +421,24 @@ const ADR_CHAR_UUID = '0000a207-0000-1000-8000-00805f9b34fb';
  * output stream.
  */
 async function connect() {
+  ConnectProgress.show('picking', 'Bluetooth cihazı seçin…', 'Cihaz seçiliyor…');
   logMsg('Bluetooth cihazları aranıyor...');
+  const optionalServices = [
+    '0000a005-0000-1000-8000-00805f9b34fb', // Commit karakteristiği (eski)
+    SYSTEM_SERVICE_UUID,
+    DEVICE_INFO_SERVICE_UUID,
+    window.MODBUS_SERVICE_UUID // Modbus servisi
+    // '00008018-0000-1000-8000-00805f9b34fb' // OTA servisi eklendi
+  ];
+  const wantLorawan = isLorawanUiEnabled();
+  if (wantLorawan) optionalServices.push(LORAWAN_SERVICE_UUID);
   device = await navigator.bluetooth.requestDevice({
     acceptAllDevices: true,
-    optionalServices: [
-      // LORAWAN_SERVICE_UUID, // LoRaWAN devre dışı – gerektiğinde tekrar eklenebilir
-      '0000a005-0000-1000-8000-00805f9b34fb', // Commit karakteristiği
-      window.MODBUS_SERVICE_UUID // Modbus servisi
-      // '00008018-0000-1000-8000-00805f9b34fb' // OTA servisi eklendi
-    ]
+    optionalServices: optionalServices
   });
+  lorawanGattSessionActive = wantLorawan;
   logMsg('Cihaz seçildi: ' + device.name);
+  ConnectProgress.show('gatt', 'Bluetooth bağlanıyor…', 'Bağlanıyor…');
   const server = await device.gatt.connect();
   logMsg('Bluetooth bağlantısı kuruldu.');
   // Bağlantı kopunca arayüzü güncelle
@@ -204,6 +502,7 @@ function getFullId(shortId) {
 
 function logMsg(text) {
   // Update the Log
+  if (!log) return;
   if (typeof showTimestamp !== 'undefined' && showTimestamp && showTimestamp.checked) {
     let d = new Date();
     let timestamp = d.getHours() + ":" + `${d.getMinutes()}`.padStart(2, 0) + ":" +
@@ -219,9 +518,63 @@ function logMsg(text) {
     log.innerHTML = logLines.splice(-maxLogLength).join("<br>\n");
   }
 
-  if (typeof autoscroll !== 'undefined' && autoscroll && autoscroll.checked) {
-    log.scrollTop = log.scrollHeight
+  const auto = typeof autoscroll === 'undefined' || !autoscroll || autoscroll.checked !== false;
+  if (auto) log.scrollTop = log.scrollHeight;
+}
+
+/** Süre metni: 850 ms / 1.2 s */
+function formatElapsed(ms) {
+  const n = Math.max(0, Number(ms) || 0);
+  if (n < 1000) return Math.round(n) + ' ms';
+  return (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '') + ' s';
+}
+
+/** Kullanıcıya sade hata metni. */
+function simpleLogError(e) {
+  const raw = e && e.message != null ? String(e.message) : String(e);
+  const msg = raw.replace(/\s+/g, ' ').trim();
+  if (!msg) return 'Bilinmeyen hata.';
+  if (/Bluetooth bağlantısı yok|cihaz bağlı değil/i.test(msg)) return 'Cihaz bağlı değil.';
+  if (/NetworkError|GATT Server disconnected|disconnected/i.test(msg)) return 'Bağlantı koptu veya yanıt alınamadı.';
+  if (/NotFoundError|no services|getPrimaryService/i.test(msg)) return 'Cihaz servisi bulunamadı.';
+  if (/NotSupportedError/i.test(msg)) return 'Bu işlem desteklenmiyor.';
+  if (/Timeout|zaman aşımı|timed out/i.test(msg)) return 'Yanıt zaman aşımına uğradı.';
+  if (/User cancelled|canceled/i.test(msg)) return 'İşlem iptal edildi.';
+  return msg.length > 140 ? msg.slice(0, 137) + '…' : msg;
+}
+
+function logOk(summary, t0) {
+  const elapsed = t0 != null ? ' · ' + formatElapsed(performance.now() - t0) : '';
+  logMsg('✓ ' + summary + elapsed);
+}
+
+function logFail(summary, e, t0) {
+  const elapsed = t0 != null ? ' · ' + formatElapsed(performance.now() - t0) : '';
+  logMsg('✗ ' + summary + ': ' + simpleLogError(e) + elapsed);
+}
+
+function isLogDrawerOpen() {
+  const drawer = document.getElementById('log-drawer');
+  return !!(drawer && drawer.classList.contains('open'));
+}
+
+function setLogDrawerOpen(open) {
+  const drawer = document.getElementById('log-drawer');
+  const overlay = document.getElementById('log-drawer-overlay');
+  const toggleLog = document.getElementById('toggleLog');
+  if (!drawer) return;
+  drawer.classList.toggle('open', !!open);
+  drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+  if (overlay) {
+    overlay.classList.toggle('open', !!open);
+    overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
   }
+  if (toggleLog) toggleLog.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open && log) log.scrollTop = log.scrollHeight;
+}
+
+function toggleLogDrawer() {
+  setLogDrawerOpen(!isLogDrawerOpen());
 }
 
 /**
@@ -276,9 +629,15 @@ async function reset() {
  */
 async function clickConnect() {
   if (device && device.gatt && device.gatt.connected) {
+    ReconnectBanner.markIntentional();
+    ReconnectBanner.hide();
+    ConnectProgress.clear();
+    clearDeviceInfoUi();
+    lorawanGattSessionActive = false;
     await teardownAllModbusBle();
     await disconnect();
     toggleUIConnected(false);
+    setLorawanUiHintVisible(false);
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) {
         input.value = '';
@@ -293,23 +652,57 @@ async function clickConnect() {
     }
     return;
   }
-  butConnect.textContent = 'Bağlanıyor...';
+  butConnect.disabled = true;
+  ReconnectBanner.hide();
+  ConnectProgress.show('picking', 'Bluetooth cihazı seçin…', 'Cihaz seçiliyor…');
+  const t0 = performance.now();
   try {
     await connect();
     clearModbusGattCache();
+    ConnectProgress.show('notify', 'Kanallar hazırlanıyor…', 'Hazırlanıyor…');
     await setupModbusResponseNotify();
     await setupModbusStreamNotify();
-    toggleUIConnected(true);
-    logMsg('Bluetooth cihazları başarıyla bulundu ve bağlanıldı.');
+    ConnectProgress.show('gateway', 'Gateway bilgileri okunuyor…', 'Ayarlar okunuyor…');
     try {
-      // Bağlantıda gateway hat ayarlarını salt okunur doldur
+      // Canlı okumadan önce hat ayarlarını doldur (mb_addr slave için SSOT)
       await readGatewayModbusSettings();
     } catch (e) {
-      logMsg('Bağlantı kuruldu fakat cihazdan veri okunamadı: ' + e);
+      logFail('Bağlantı kuruldu, ayarlar okunamadı', e);
     }
+    try {
+      await readDeviceInfo();
+    } catch (e) {
+      logFail('Device Info okunamadı', e);
+    }
+    if (isLorawanUiEnabled() && lorawanGattSessionActive) {
+      try {
+        await readLoRaWANAll();
+        setLorawanUiHintVisible(false);
+      } catch (e) {
+        logFail('LoRaWAN okunamadı', e);
+      }
+    }
+    toggleUIConnected(true);
+    ReconnectBanner.hide();
+    logOk('Cihaza bağlandı' + (device && device.name ? ' (' + device.name + ')' : ''), t0);
+
+    const deviceId = typeof window.getCurrentDeviceId === 'function' ? window.getCurrentDeviceId() : null;
+    const pageId = typeof window.getCurrentPageId === 'function' ? window.getCurrentPageId() : null;
+    const livePage = pageId === 'dashboard' || pageId === 'charts' ||
+      pageId === 'harmonics' || pageId === 'io-monitor';
+    const wantLive = !!(deviceId && deviceId !== 'manual' && livePage &&
+      window.LiveModbus && window.LiveModbus.shouldUseLive());
+    if (wantLive) {
+      ConnectProgress.show('live', 'Canlı veri bekleniyor…', 'Veri bekleniyor…');
+      await ConnectProgress.waitForFirstLiveData(10000);
+    }
+    ConnectProgress.finishReady('Bağlantı hazır');
   } catch (e) {
     await teardownAllModbusBle();
-    logMsg('Bluetooth cihazı bulunamadı veya bağlantı reddedildi.');
+    ConnectProgress.clear();
+    ConnectProgress.setStatusDot('disconnected');
+    clearDeviceInfoUi();
+    logFail('Bağlantı kurulamadı', e, t0);
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) {
         input.value = '';
@@ -323,6 +716,7 @@ async function clickConnect() {
       editBtnFail.textContent = 'Düzenle';
     }
   }
+  butConnect.disabled = false;
   butConnect.textContent = device && device.gatt && device.gatt.connected ? 'Bağlantıyı Kes' : 'Cihaza Bağlan';
 }
 
@@ -338,8 +732,19 @@ async function onDisconnected(event) {
   destroyPanels();
 
   await teardownAllModbusBle();
+  ConnectProgress.clear();
+  clearDeviceInfoUi();
+  lorawanGattSessionActive = false;
+  setLorawanUiHintVisible(false);
   toggleUIConnected(false);
-  logMsg('Cihaz ile bağlantı KOPTU! Lütfen tekrar bağlanın.');
+  const intentional = ReconnectBanner.consumeIntentional();
+  if (intentional) {
+    ReconnectBanner.hide();
+    logMsg('Bağlantı kesildi.');
+  } else {
+    ReconnectBanner.show('Bluetooth bağlantısı koptu. Tekrar bağlanın.');
+    logMsg('Cihaz ile bağlantı KOPTU! Lütfen tekrar bağlanın.');
+  }
 
   device = undefined;
   currentBoard = undefined;
@@ -417,23 +822,36 @@ function setGatewayModbusEditMode(editing) {
   });
   const writeBtn = document.getElementById('write_all');
   const editBtn = document.getElementById('edit_gateway_modbus');
-  if (writeBtn) writeBtn.disabled = !gatewayModbusEditMode;
   if (editBtn) {
     editBtn.disabled = !isBleConnected();
     editBtn.textContent = gatewayModbusEditMode ? 'İptal' : 'Düzenle';
+  }
+  // Yaz butonu sekme bağlamına göre (Modbus: edit mode; LoRaWAN: bağlıysa açık)
+  if (typeof updateSettingsDeviceActionsVisibility === 'function') {
+    updateSettingsDeviceActionsVisibility();
+  } else if (writeBtn) {
+    writeBtn.disabled = !gatewayModbusEditMode;
   }
 }
 
 function toggleUIConnected(connected) {
   const status = document.getElementById('connection-status');
+  const statusText = document.getElementById('connection-status-text');
   const commitBtn = document.getElementById('commit_and_restart');
   let lbl = 'Cihaza Bağlan';
   if (connected) {
     lbl = 'Bağlantıyı Kes';
     if (status) {
-      status.textContent = 'Bağlı';
-      status.classList.remove('disconnected');
+      status.textContent = '';
+      status.title = 'Bağlı';
+      status.setAttribute('aria-label', 'Bağlı');
+      status.classList.remove('disconnected', 'connecting');
       status.classList.add('connected');
+    }
+    if (statusText) {
+      statusText.textContent = 'Bağlı';
+      statusText.classList.remove('is-warn', 'is-off');
+      statusText.classList.add('is-ok');
     }
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) input.disabled = false;
@@ -446,9 +864,16 @@ function toggleUIConnected(connected) {
     if (mmWrite) mmWrite.disabled = false;
   } else {
     if (status) {
-      status.textContent = 'Bağlı Değil';
-      status.classList.remove('connected');
+      status.textContent = '';
+      status.title = 'Bağlı değil';
+      status.setAttribute('aria-label', 'Bağlı değil');
+      status.classList.remove('connected', 'connecting');
       status.classList.add('disconnected');
+    }
+    if (statusText) {
+      statusText.textContent = 'Bağlı değil';
+      statusText.classList.remove('is-ok', 'is-warn');
+      statusText.classList.add('is-off');
     }
     [document.getElementById('device_eui'), document.getElementById('app_eui'), document.getElementById('app_key')].forEach(input => {
       if (input) {
@@ -480,9 +905,11 @@ function toggleUIConnected(connected) {
     const mmWrite = document.getElementById('mm_btn_write');
     if (mmRead) mmRead.disabled = true;
     if (mmWrite) mmWrite.disabled = true;
+    setCommitPending(false);
   }
   const butConnect = document.getElementById('butConnect');
   if (butConnect) butConnect.textContent = lbl;
+  updateSettingsDeviceActionsVisibility();
   try {
     if (typeof window.onBleConnectionChange === 'function') {
       window.onBleConnectionChange(!!connected);
@@ -985,19 +1412,14 @@ function hexToBytes(hex, expectedLen, label) {
 }
 
 /**
- * Gateway’in RS-485 hat ayarlarını BLE GATT’a yazar (a401–a40a).
+ * Gateway’in RS-485 hat ayarlarını BLE GATT’a yazar (a401–a407).
  * Çok baytlı alanlar big-endian. Slave’e Modbus RTU göndermez.
  */
 async function writeGatewayModbusSettings() {
   if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
+  const fields = getGatewayModbusFieldEls();
   const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
   const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
-
-  const getVal = (id) => {
-    const el = document.getElementById(id);
-    if (!el) throw id + ' bulunamadı.';
-    return String(el.value).trim();
-  };
 
   const requireSelectOption = (id, label) => {
     const el = document.getElementById(id);
@@ -1012,19 +1434,14 @@ async function writeGatewayModbusSettings() {
     return v;
   };
 
-  const addr = parseInt(getVal('mb_addr'), 10);
-  if (!(addr >= 1 && addr <= 247)) throw 'Addr 1–247 olmalı.';
-  const baud = parseInt(requireSelectOption('mb_baud', 'Baud'), 10);
-  const parity = parseInt(requireSelectOption('mb_parity', 'Parity'), 10);
-  const stopbits = parseInt(requireSelectOption('mb_stopbits', 'StopBits'), 10);
-  const databits = parseInt(requireSelectOption('mb_databits', 'DataBits'), 10);
-  const timeout = parseInt(requireSelectOption('mb_timeout', 'Timeout'), 10);
+  const addr = parseInt(requireSelectOption('mb_addr', 'Slave adresi'), 10);
+  if (!(addr >= 1 && addr <= 247)) throw 'Slave adresi 1–247 olmalı.';
+  const baud = parseInt(requireSelectOption('mb_baud', 'Baud hızı'), 10);
+  const parity = parseInt(requireSelectOption('mb_parity', 'Parite'), 10);
+  const stopbits = parseInt(requireSelectOption('mb_stopbits', 'Stop biti'), 10);
+  const databits = parseInt(requireSelectOption('mb_databits', 'Veri biti'), 10);
+  const timeout = parseInt(requireSelectOption('mb_timeout', 'Zaman aşımı'), 10);
   const polling = parseInt(requireSelectOption('mb_polling', 'Polling'), 10);
-  const func = parseInt(requireSelectOption('mb_func', 'Func'), 10);
-  const regstart = parseInt(getVal('mb_regstart'), 10);
-  if (!(regstart >= 0 && regstart <= 65535)) throw 'Reg Start 0–65535 olmalı.';
-  const reglen = parseInt(getVal('mb_reglen'), 10);
-  if (!(reglen >= 1 && reglen <= 125)) throw 'Reg Len 1–125 olmalı.';
 
   const writes = [
     { uuid: MB_ADDR_UUID, data: Uint8Array.of(addr & 0xff) },
@@ -1033,23 +1450,27 @@ async function writeGatewayModbusSettings() {
     { uuid: MB_STOPBITS_UUID, data: Uint8Array.of(stopbits & 0xff) },
     { uuid: MB_DATABITS_UUID, data: Uint8Array.of(databits & 0xff) },
     { uuid: MB_TIMEOUT_UUID, data: uint32BeBytes(timeout) },
-    { uuid: MB_POLLING_UUID, data: uint32BeBytes(polling) },
-    { uuid: MB_FUNC_UUID, data: Uint8Array.of(func & 0xff) },
-    { uuid: MB_REGSTART_UUID, data: uint16BeBytes(regstart) },
-    { uuid: MB_REGLEN_UUID, data: uint16BeBytes(reglen) }
+    { uuid: MB_POLLING_UUID, data: uint32BeBytes(polling) }
   ];
 
-  for (const w of writes) {
-    const ch = await service.getCharacteristic(w.uuid);
-    await ch.writeValue(w.data);
+  setFieldsBusy(fields, true);
+  const t0 = performance.now();
+  try {
+    for (const w of writes) {
+      const ch = await service.getCharacteristic(w.uuid);
+      await ch.writeValue(w.data);
+    }
+    setFieldsBusy(fields, false);
+    flashFields(fields, '#bfdbfe');
+    logOk('Hat ayarları yazıldı (slave ' + addr + ', ' + baud + ' baud, zaman aşımı ' + timeout + ' ms)', t0);
+  } catch (e) {
+    setFieldsBusy(fields, false);
+    throw e;
   }
-  logMsg('Gateway Modbus hat ayarları BLE üzerinden yazıldı (uint32/uint16 BE; RS-485 trafiği yok).');
 }
 
 async function writeLoRaWANKeysIfFilled() {
-  const lorawanBtn = document.querySelector('.tab-modern[data-tab="lorawan"]');
-  const tabVisible = lorawanBtn && getComputedStyle(lorawanBtn).display !== 'none';
-  if (!tabVisible) return false;
+  if (!isLorawanUiEnabled()) return false;
 
   const deveui = document.getElementById('device_eui')?.value.trim() || '';
   const appeui = document.getElementById('app_eui')?.value.trim() || '';
@@ -1058,39 +1479,140 @@ async function writeLoRaWANKeysIfFilled() {
   if (!(deveui.length === 16 && appeui.length === 16 && appkey.length === 32)) {
     throw 'LoRaWAN alanları doluysa Device EUI 16, APP EUI 16, APP Key 32 hex karakter olmalı.';
   }
+  if (!lorawanGattSessionActive) {
+    throw 'LoRaWAN GATT erişimi yok. Bağlantıyı kesip LoRaWAN açıkken yeniden bağlanın.';
+  }
 
   const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
   const service = await server.getPrimaryService(LORAWAN_SERVICE_UUID);
+  const t0 = performance.now();
   await (await service.getCharacteristic(DEVEUI_CHAR_UUID)).writeValue(hexToBytes(deveui, 8, 'Device EUI'));
   await (await service.getCharacteristic(APPEUI_CHAR_UUID)).writeValue(hexToBytes(appeui, 8, 'APP EUI'));
   await (await service.getCharacteristic(APPKEY_CHAR_UUID)).writeValue(hexToBytes(appkey, 16, 'APP Key'));
-  logMsg('LoRaWAN anahtarları cihaza yazıldı.');
+  logOk('LoRaWAN anahtarları yazıldı', t0);
   return true;
 }
 
+function getActiveSettingsTab() {
+  const active = document.querySelector('#page-settings .tab-modern.active');
+  return active ? active.dataset.tab : null;
+}
+
+/** Yaz / Düzenle / Kaydet ve Yeniden Başlat: yalnızca cihaz ayarı sekmelerinde.
+ *  İşlem Logu: Gelişmiş (app) sekmesinde; teşhis aracı. */
+window.updateSettingsDeviceActionsVisibility = updateSettingsDeviceActionsVisibility;
+function updateSettingsDeviceActionsVisibility(tab) {
+  const tabName = tab || getActiveSettingsTab();
+  const bar = document.getElementById('settings-device-actions');
+  const editBtn = document.getElementById('edit_gateway_modbus');
+  const writeBtn = document.getElementById('write_all');
+  const guide = document.getElementById('settings-commit-guide');
+
+  const showBar = tabName === 'modbus' || tabName === 'lorawan';
+
+  if (bar) bar.style.display = showBar ? '' : 'none';
+  if (guide) {
+    guide.hidden = !(showBar && window._commitPending);
+  }
+
+  if (editBtn) {
+    // Düzenle yalnızca gateway Modbus formunu açar
+    editBtn.style.display = tabName === 'modbus' ? '' : 'none';
+  }
+
+  if (writeBtn && showBar && isBleConnected()) {
+    if (tabName === 'modbus') {
+      writeBtn.disabled = !gatewayModbusEditMode;
+    } else if (tabName === 'lorawan') {
+      writeBtn.disabled = false;
+    }
+  }
+}
+
+/** Yaz sonrası «Kaydet ve Yeniden Başlat» sticky rehberi. */
+function setCommitPending(pending) {
+  window._commitPending = !!pending;
+  const guide = document.getElementById('settings-commit-guide');
+  const commitBtn = document.getElementById('commit_and_restart');
+  const tabName = getActiveSettingsTab();
+  const showBar = tabName === 'modbus' || tabName === 'lorawan';
+  if (guide) guide.hidden = !(pending && showBar);
+  if (commitBtn) {
+    if (pending) commitBtn.classList.add('btn-emphasis');
+    else commitBtn.classList.remove('btn-emphasis');
+  }
+}
+
 async function writeAll() {
+  const writeBtn = document.getElementById('write_all');
+  const editBtn = document.getElementById('edit_gateway_modbus');
+  const commitBtn = document.getElementById('commit_and_restart');
+  const setActionBusy = (busy) => {
+    if (writeBtn) writeBtn.disabled = busy || (getActiveSettingsTab() === 'modbus' && !gatewayModbusEditMode) || !isBleConnected();
+    if (editBtn) editBtn.disabled = busy || !isBleConnected();
+    if (commitBtn) commitBtn.disabled = busy || !isBleConnected();
+  };
+  const t0 = performance.now();
   try {
     if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
+    const tab = getActiveSettingsTab();
+    setActionBusy(true);
+
+    if (tab === 'lorawan') {
+      const lorawanFields = Array.from(document.querySelectorAll('#tab-lorawan input'));
+      setFieldsBusy(lorawanFields, true);
+      try {
+        const wrote = await writeLoRaWANKeysIfFilled();
+        setFieldsBusy(lorawanFields, false);
+        if (!wrote) throw 'Device EUI, APP EUI ve APP Key alanlarını doldurun.';
+        flashFields(lorawanFields, '#bfdbfe');
+        setCommitPending(true);
+        logMsg('Kalıcı kayıt için «Kaydet ve Yeniden Başlat» kullanın.');
+      } catch (e) {
+        setFieldsBusy(lorawanFields, false);
+        throw e;
+      }
+      return;
+    }
+
+    if (tab !== 'modbus') throw 'Bu sekmede yazılacak cihaz ayarı yok.';
     if (!gatewayModbusEditMode) throw 'Önce «Düzenle» ile ayarları açın.';
     await writeGatewayModbusSettings();
     await writeLoRaWANKeysIfFilled();
     setGatewayModbusEditMode(false);
-    logMsg('Ayarlar yazıldı. Kalıcı kayıt için «Cihazı Yeniden Başlat» (Commit) kullanın.');
+    setCommitPending(true);
+    logMsg('Kalıcı kayıt için «Kaydet ve Yeniden Başlat» kullanın. · toplam ' + formatElapsed(performance.now() - t0));
   } catch (e) {
-    logMsg('Ayarlar yazılamadı: ' + e);
+    logFail('Yazma başarısız', e, t0);
+  } finally {
+    setActionBusy(false);
+    updateSettingsDeviceActionsVisibility();
   }
 }
 
 // TAB arayüzü için sekme geçişi
 document.addEventListener('DOMContentLoaded', () => {
+  const mbAddr = document.getElementById('mb_addr');
+  if (mbAddr && mbAddr.tagName === 'SELECT' && mbAddr.options.length === 0) {
+    for (let i = 1; i <= 247; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = String(i);
+      if (i === 1) opt.selected = true;
+      mbAddr.appendChild(opt);
+    }
+  }
   document.querySelectorAll('.tab-modern').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.tab-modern').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
       this.classList.add('active');
       document.getElementById('tab-' + this.dataset.tab).style.display = '';
+      updateSettingsDeviceActionsVisibility(this.dataset.tab);
     });
   });
+  updateSettingsDeviceActionsVisibility();
+  initLorawanUiToggle();
 });
 
 // Modbus servis ve karakteristik UUID'leri
@@ -1104,9 +1626,6 @@ function defineModbusUUIDs() {
   window.MB_DATABITS_UUID = '0000a405-0000-1000-8000-00805f9b34fb';
   window.MB_TIMEOUT_UUID  = '0000a406-0000-1000-8000-00805f9b34fb';
   window.MB_POLLING_UUID  = '0000a407-0000-1000-8000-00805f9b34fb';
-  window.MB_FUNC_UUID     = '0000a408-0000-1000-8000-00805f9b34fb';
-  window.MB_REGSTART_UUID = '0000a409-0000-1000-8000-00805f9b34fb';
-  window.MB_REGLEN_UUID   = '0000a40a-0000-1000-8000-00805f9b34fb';
   window.MODBUS_QUERY_CHAR_UUID  = '0000a40b-0000-1000-8000-00805f9b34fb';
   window.MODBUS_RESPONSE_CHAR_UUID = '0000a40c-0000-1000-8000-00805f9b34fb';
   window.MODBUS_SUBSCRIBE_CHAR_UUID = '0000a40d-0000-1000-8000-00805f9b34fb';
@@ -1122,9 +1641,6 @@ const MB_STOPBITS_UUID = window.MB_STOPBITS_UUID;
 const MB_DATABITS_UUID = window.MB_DATABITS_UUID;
 const MB_TIMEOUT_UUID = window.MB_TIMEOUT_UUID;
 const MB_POLLING_UUID = window.MB_POLLING_UUID;
-const MB_FUNC_UUID = window.MB_FUNC_UUID;
-const MB_REGSTART_UUID = window.MB_REGSTART_UUID;
-const MB_REGLEN_UUID = window.MB_REGLEN_UUID;
 const MODBUS_QUERY_CHAR_UUID = window.MODBUS_QUERY_CHAR_UUID;
 const MODBUS_RESPONSE_CHAR_UUID = window.MODBUS_RESPONSE_CHAR_UUID;
 const MODBUS_SUBSCRIBE_CHAR_UUID = window.MODBUS_SUBSCRIBE_CHAR_UUID;
@@ -1158,11 +1674,47 @@ function setGatewayModbusFieldValue(id, value) {
   el.value = v;
 }
 
+/** Konfig sayfasıyla aynı: okuma/yazma sonrası input flash. */
+function flashFieldEl(el, color) {
+  if (!el) return;
+  el.classList.remove('field-busy');
+  el.style.transition = 'background-color 0.3s';
+  el.style.backgroundColor = color;
+  setTimeout(function() { el.style.backgroundColor = ''; }, 800);
+}
+
+function getGatewayModbusFieldEls() {
+  return Array.from(document.querySelectorAll('#tab-modbus input, #tab-modbus select'));
+}
+
+function getManualModbusFieldEls() {
+  return Array.from(document.querySelectorAll('#tab-manual-modbus input, #tab-manual-modbus select'));
+}
+
+function setFieldsBusy(els, busy) {
+  (els || []).forEach(function(el) {
+    if (!el) return;
+    if (busy) {
+      el.classList.add('field-busy');
+    } else {
+      el.classList.remove('field-busy');
+      el.style.backgroundColor = '';
+    }
+  });
+}
+
+function flashFields(els, color) {
+  (els || []).forEach(function(el) { flashFieldEl(el, color); });
+}
+
 /**
- * Gateway’in RS-485 hat ayarlarını BLE GATT’tan okur (a401–a40a, big-endian).
+ * Gateway’in RS-485 hat ayarlarını BLE GATT’tan okur (a401–a407, big-endian).
  * Query/Subscribe/Stream değildir; slave register okumaz.
  */
 async function readGatewayModbusSettings() {
+  const fields = getGatewayModbusFieldEls();
+  setFieldsBusy(fields, true);
+  const t0 = performance.now();
   try {
     const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
     const service = await server.getPrimaryService(MODBUS_SERVICE_UUID);
@@ -1174,10 +1726,7 @@ async function readGatewayModbusSettings() {
       { id: 'mb_stopbits', uuid: MB_STOPBITS_UUID, parse: (v) => String(v.getUint8(0)) },
       { id: 'mb_databits', uuid: MB_DATABITS_UUID, parse: (v) => String(v.getUint8(0)) },
       { id: 'mb_timeout', uuid: MB_TIMEOUT_UUID, parse: (v) => String(parseGattUint32Be(v)) },
-      { id: 'mb_polling', uuid: MB_POLLING_UUID, parse: (v) => String(parseGattUint32Be(v)) },
-      { id: 'mb_func', uuid: MB_FUNC_UUID, parse: (v) => String(v.getUint8(0)) },
-      { id: 'mb_regstart', uuid: MB_REGSTART_UUID, parse: (v) => String(parseGattUint16Be(v)) },
-      { id: 'mb_reglen', uuid: MB_REGLEN_UUID, parse: (v) => String(parseGattUint16Be(v)) }
+      { id: 'mb_polling', uuid: MB_POLLING_UUID, parse: (v) => String(parseGattUint32Be(v)) }
     ];
 
     const results = await Promise.all(specs.map(async (spec) => {
@@ -1186,11 +1735,93 @@ async function readGatewayModbusSettings() {
       return { id: spec.id, value: spec.parse(view) };
     }));
 
+    setFieldsBusy(fields, false);
+    const byId = {};
     results.forEach(function(r) {
+      byId[r.id] = r.value;
       setGatewayModbusFieldValue(r.id, r.value);
+      flashFieldEl(document.getElementById(r.id), '#d1fae5');
     });
+    logOk('Hat ayarları okundu (slave ' + (byId.mb_addr || '—') + ', ' + (byId.mb_baud || '—') + ' baud)', t0);
   } catch (e) {
-    logMsg('Gateway Modbus hat ayarları okunamadı: ' + e);
+    setFieldsBusy(fields, false);
+    logFail('Hat ayarları okunamadı', e, t0);
+  }
+}
+
+function setDeviceInfoField(id, value) {
+  const el = document.getElementById(id);
+  const text = (value != null && value !== '') ? String(value) : '—';
+  if (el) el.textContent = text;
+  if (id === 'di-sw') {
+    const fwSw = document.getElementById('firmware-current-sw');
+    if (fwSw) fwSw.textContent = text;
+  }
+}
+
+function clearDeviceInfoUi(message) {
+  ['di-model', 'di-sw', 'di-hw', 'di-eui', 'di-lorawan', 'di-workmode', 'di-geoloc', 'di-class', 'di-battery']
+    .forEach(function(id) { setDeviceInfoField(id, '—'); });
+  const status = document.getElementById('di-status');
+  if (status) status.textContent = message || 'Cihaza bağlanınca okunur.';
+}
+
+/**
+ * Device Info (0x180A) — SSOT: include/ble_services_characteristics_table.csv
+ * Gelişmiş sekmesindeki gateway kartına yazar. Eksik karakteristikler — kalır.
+ */
+async function readDeviceInfo() {
+  const status = document.getElementById('di-status');
+  if (status) status.textContent = 'Okunuyor…';
+  const t0 = performance.now();
+  try {
+    if (!device || !device.gatt || !device.gatt.connected) throw 'Bluetooth bağlantısı yok.';
+    const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+    const service = await server.getPrimaryService(DEVICE_INFO_SERVICE_UUID);
+
+    async function readOne(uuid, parseFn) {
+      try {
+        const ch = await service.getCharacteristic(uuid);
+        const view = await ch.readValue();
+        return parseFn(view);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    const model = await readOne(DI_MODEL_UUID, bufferToString);
+    const sw = await readOne(DI_SW_UUID, bufferToString);
+    const hw = await readOne(DI_HW_UUID, bufferToString);
+    const eui = await readOne(DI_EUI_UUID, hexStringFromBuffer);
+    const lorawan = await readOne(DI_LORAWAN_UUID, bufferToString);
+    const workmode = await readOne(DI_WORKMODE_UUID, bufferToString);
+    const geoloc = await readOne(DI_GEOLOC_UUID, bufferToString);
+    const classType = await readOne(DI_CLASS_UUID, bufferToString);
+    const battery = await readOne(DI_BATTERY_UUID, function(v) {
+      return v.byteLength ? (v.getUint8(0) + ' %') : null;
+    });
+
+    setDeviceInfoField('di-model', model);
+    setDeviceInfoField('di-sw', sw);
+    setDeviceInfoField('di-hw', hw);
+    setDeviceInfoField('di-eui', eui);
+    setDeviceInfoField('di-lorawan', lorawan);
+    setDeviceInfoField('di-workmode', workmode);
+    setDeviceInfoField('di-geoloc', geoloc);
+    setDeviceInfoField('di-class', classType);
+    setDeviceInfoField('di-battery', battery);
+
+    const any = model || sw || hw || eui;
+    if (status) {
+      status.textContent = any
+        ? ('Okundu' + (model ? ' · ' + model : '') + (sw ? ' · v' + sw : ''))
+        : 'Device Info karakteristikleri bulunamadı.';
+    }
+    if (any) logOk('Device Info okundu' + (model ? ' (' + model + ')' : ''), t0);
+    else logMsg('Device Info servisi erişildi ama alanlar boş/eksik.');
+  } catch (e) {
+    clearDeviceInfoUi('Device Info okunamadı.');
+    logFail('Device Info okunamadı', e, t0);
   }
 }
 
@@ -1965,6 +2596,9 @@ window.setModbusActiveSubEpoch = setModbusActiveSubEpoch;
 window.statusCodeToText = statusCodeToText;
 window.parseModbusResponse = parseModbusResponse;
 window.logMsg = logMsg;
+window.logOk = logOk;
+window.logFail = logFail;
+window.simpleLogError = simpleLogError;
 
 function bufferToString(dataView) {
   let str = '';
@@ -2044,9 +2678,9 @@ async function readLoRaWANAll() {
     const pckpoVal = await pckpoChar.readValue();
     const value = pckpoVal.getUint8(0).toString();
     document.getElementById('pckpo').value = value;
-    logMsg('PckPo okundu: ' + value);
+    logMsg('Paket politikası okundu: ' + value);
   } catch (e) {
-    logMsg('PckPo okunamadı: ' + e);
+    logMsg('Paket politikası okunamadı: ' + e);
   }
   // ADR
   try {
@@ -2086,26 +2720,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (butConnect && typeof clickConnect === 'function') {
     butConnect.addEventListener('click', clickConnect);
   }
-  // Logu Göster/Gizle butonu
+  // İşlem logu: sağ sidecar
   const toggleLog = document.getElementById('toggleLog');
-  const logArea = document.getElementById('log');
-  if (toggleLog && logArea) {
-    toggleLog.addEventListener('click', () => {
-      if (logArea.style.display === 'block') {
-        logArea.style.display = 'none';
-      } else {
-        logArea.style.display = 'block';
-      }
-    });
-  }
+  const logDrawerClose = document.getElementById('log-drawer-close');
+  const logDrawerOverlay = document.getElementById('log-drawer-overlay');
+  if (toggleLog) toggleLog.addEventListener('click', toggleLogDrawer);
+  if (logDrawerClose) logDrawerClose.addEventListener('click', () => setLogDrawerOpen(false));
+  if (logDrawerOverlay) logDrawerOverlay.addEventListener('click', () => setLogDrawerOpen(false));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isLogDrawerOpen()) setLogDrawerOpen(false);
+  });
   console.log('Sadece hex karakter ve max uzunluk için keyup event ile kontrol aktif.');
   const commitBtn = document.getElementById('commit_and_restart');
   if (commitBtn) {
     commitBtn.addEventListener('click', async () => {
       let yazildi = false;
+      const t0 = performance.now();
       try {
         if (!device || !device.gatt.connected) {
-          logMsg('Cihaz bağlı değil, commit işlemi yapılamaz.');
+          logFail('Yeniden başlatılamadı', 'Cihaz bağlı değil.');
           return;
         }
         const server = device.gatt;
@@ -2113,16 +2746,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let characteristic = await service.getCharacteristic(COMMIT_CHAR_UUID);
         await characteristic.writeValue(Uint8Array.of(0x01));
         yazildi = true;
-        logMsg('Ayarlar BLE commit karakteristiğine yazıldı. Cihaz yeniden başlatılıyor (bip sesi duyulacak).');
+        setCommitPending(false);
+        logOk('Ayarlar kaydedildi, cihaz yeniden başlatılıyor', t0);
       } catch (err) {
-        // Kullanıcıya hata mesajı gösterme, sadece konsola yaz
         console.warn('Commit işlemi sırasında hata:', err);
+        logFail('Yeniden başlatma başarısız', err, t0);
       } finally {
         if (device && device.gatt.connected) {
+          if (window.ReconnectBanner) ReconnectBanner.markIntentional();
           device.gatt.disconnect();
-          logMsg('BLE bağlantısı yazılım tarafından sonlandırıldı.');
+          logMsg('BLE bağlantısı kapatıldı.');
         } else if (!yazildi) {
-          logMsg('BLE bağlantısı cihaz tarafından sonlandırıldı.');
+          logMsg('BLE bağlantısı cihaz tarafından kesildi.');
         }
       }
     });
@@ -2133,16 +2768,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!isBleConnected()) return;
       if (gatewayModbusEditMode) {
         setGatewayModbusEditMode(false);
+        logMsg('Düzenleme iptal edildi.');
         try {
           await readGatewayModbusSettings();
-          logMsg('Düzenleme iptal; hat ayarları cihazdan yeniden okundu.');
         } catch (e) {
-          logMsg('İptal sonrası okuma hatası: ' + e);
+          logFail('İptal sonrası okuma', e);
         }
         return;
       }
       setGatewayModbusEditMode(true);
-      logMsg('Gateway hat ayarları düzenlenebilir. Değiştirip «Yaz»a basın.');
+      logMsg('Düzenleme açık — değiştirip «Yaz»a basın.');
     });
   }
 
@@ -2196,18 +2831,35 @@ document.addEventListener('DOMContentLoaded', () => {
       setManualModbusResult('Hata', 'Paket oluşturulamadı.');
       return;
     }
+    const fields = getManualModbusFieldEls();
+    const btnRead = document.getElementById('mm_btn_read');
+    const btnWrite = document.getElementById('mm_btn_write');
     setManualModbusResult('Gönderiliyor…', '');
+    setFieldsBusy(fields, true);
+    if (btnRead) btnRead.disabled = true;
+    if (btnWrite) btnWrite.disabled = true;
+    const t0 = performance.now();
     try {
       const res = await sendModbusRequest(packet);
       const statusStr = statusCodeToText(res.status);
       setManualModbusResult(statusStr, res.registers && res.registers.length
         ? '<div class="mm-regs">' + res.registers.map((r, i) => 'Reg[' + i + '] = ' + r + ' (0x' + r.toString(16).toUpperCase() + ')').join('<br>') + '</div>'
         : (res.status !== 0 ? '' : '—'));
-      if (res.status === 0) logMsg('Manuel Modbus okuma başarılı.');
-      else logMsg('Manuel Modbus cevap: ' + statusStr);
+      setFieldsBusy(fields, false);
+      if (res.status === 0) {
+        flashFields(fields, '#d1fae5');
+        const n = (res.registers && res.registers.length) || qty;
+        logOk('Modbus okuma: slave ' + slave + ', reg ' + start + ', ' + n + ' register', t0);
+      } else {
+        logFail('Modbus okuma', statusStr, t0);
+      }
     } catch (e) {
-      setManualModbusResult('Hata', String(e.message || e));
-      logMsg('Manuel Modbus okuma hatası: ' + e);
+      setFieldsBusy(fields, false);
+      setManualModbusResult('Hata', simpleLogError(e));
+      logFail('Modbus okuma', e, t0);
+    } finally {
+      if (btnRead) btnRead.disabled = !isBleConnected();
+      if (btnWrite) btnWrite.disabled = !isBleConnected();
     }
   });
 
@@ -2250,16 +2902,32 @@ document.addEventListener('DOMContentLoaded', () => {
       setManualModbusResult('Hata', 'Paket oluşturulamadı.');
       return;
     }
+    const fields = getManualModbusFieldEls();
+    const btnRead = document.getElementById('mm_btn_read');
+    const btnWrite = document.getElementById('mm_btn_write');
     setManualModbusResult('Gönderiliyor…', '');
+    setFieldsBusy(fields, true);
+    if (btnRead) btnRead.disabled = true;
+    if (btnWrite) btnWrite.disabled = true;
+    const t0 = performance.now();
     try {
       const res = await sendModbusRequest(packet);
       const statusStr = statusCodeToText(res.status);
       setManualModbusResult(statusStr, res.status === 0 ? 'Yazma başarılı.' : '');
-      if (res.status === 0) logMsg('Manuel Modbus yazma başarılı.');
-      else logMsg('Manuel Modbus cevap: ' + statusStr);
+      setFieldsBusy(fields, false);
+      if (res.status === 0) {
+        flashFields(fields, '#bfdbfe');
+        logOk('Modbus yazma: slave ' + slave + ', reg ' + start + ', ' + values.length + ' register', t0);
+      } else {
+        logFail('Modbus yazma', statusStr, t0);
+      }
     } catch (e) {
-      setManualModbusResult('Hata', String(e.message || e));
-      logMsg('Manuel Modbus yazma hatası: ' + e);
+      setFieldsBusy(fields, false);
+      setManualModbusResult('Hata', simpleLogError(e));
+      logFail('Modbus yazma', e, t0);
+    } finally {
+      if (btnRead) btnRead.disabled = !isBleConnected();
+      if (btnWrite) btnWrite.disabled = !isBleConnected();
     }
   });
 });
@@ -2377,34 +3045,38 @@ function showUpdateModal(msg) {
 // 10 saniyede bir kontrol et
 setInterval(checkForNewVersion, 10000);
 
-// Tab değişimi için event listener'ları ekle
+// Tab değişimi + firmware accordion (Gelişmiş altında)
 document.addEventListener('DOMContentLoaded', () => {
+    function syncFirmwareFileInputEnabled() {
+        if (!firmwareFileInput) return;
+        const panel = document.getElementById('firmware-accordion-panel');
+        const open = panel && !panel.classList.contains('hidden');
+        const onAppTab = getActiveSettingsTab() === 'app';
+        if (open && onAppTab) firmwareFileInput.removeAttribute('disabled');
+        else firmwareFileInput.setAttribute('disabled', 'disabled');
+    }
+
     document.querySelectorAll('.tab-modern').forEach(btn => {
         btn.addEventListener('click', function() {
-            // Aktif tab'ı değiştir
-            document.querySelectorAll('.tab-modern').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Tab içeriğini göster/gizle
-            document.querySelectorAll('.tab-pane').forEach(tc => tc.classList.remove('active'));
-            document.getElementById('tab-' + this.dataset.tab).classList.add('active');
-
-            // Firmware tabı aktifse input'u enable yap, değilse disable
-            if (this.dataset.tab === 'firmware') {
-                firmwareFileInput.removeAttribute('disabled');
-            } else {
-                firmwareFileInput.setAttribute('disabled', 'disabled');
-            }
+            syncFirmwareFileInputEnabled();
+            updateSettingsDeviceActionsVisibility(this.dataset.tab);
         });
     });
 
-    // Sayfa ilk açıldığında da kontrol et
-    const activeTab = document.querySelector('.tab-modern.active');
-    if (activeTab && activeTab.dataset.tab === 'firmware') {
-        firmwareFileInput.removeAttribute('disabled');
-    } else {
-        firmwareFileInput.setAttribute('disabled', 'disabled');
+    const fwToggle = document.getElementById('firmware-accordion-toggle');
+    const fwPanel = document.getElementById('firmware-accordion-panel');
+    const fwChevron = document.getElementById('firmware-accordion-chevron');
+    if (fwToggle && fwPanel) {
+        fwToggle.addEventListener('click', function() {
+            const open = fwPanel.classList.toggle('hidden') === false;
+            fwToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (fwChevron) fwChevron.style.transform = open ? 'rotate(180deg)' : '';
+            syncFirmwareFileInputEnabled();
+        });
     }
+
+    syncFirmwareFileInputEnabled();
+    updateSettingsDeviceActionsVisibility();
 });
 
 // Firmware güncelleme için BLE bağlantı kontrolü

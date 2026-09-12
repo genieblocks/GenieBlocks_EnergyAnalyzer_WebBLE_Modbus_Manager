@@ -27,6 +27,11 @@
   var coldBusy = false;
   var resubTimer = null;
   var lastParamsKey = '';
+  var healthListeners = [];
+  var healthState = { code: 'idle', message: '', level: 'ok', updatedAt: 0 };
+  var lastLiveDataAt = 0;
+  var liveWatchTimer = null;
+  var LIVE_STALE_MS = 5000;
 
   /**
    * Register’ı poll onValues’tan tut.
@@ -96,6 +101,11 @@
   function setDemoMode(mode) {
     if (mode !== 'auto' && mode !== 'force' && mode !== 'off') mode = 'auto';
     localStorage.setItem(DEMO_MODE_KEY, mode);
+    if (mode === 'force' || (mode === 'auto' && !isBleConnected())) {
+      setHealth('demo', 'Demo veri');
+    } else if (mode === 'off' && !isBleConnected()) {
+      setHealth('idle', '');
+    }
     demoModeListeners.forEach(function(fn) {
       try { fn(mode); } catch (e) { /* ignore */ }
     });
@@ -714,6 +724,7 @@
     pollBusy = false;
     clearColdTimer();
     clearResubTimer();
+    clearLiveWatch();
     if (streamActive) {
       detachStreamListener();
       writeUnsubscribe();
@@ -725,6 +736,8 @@
     lastParamsKey = '';
     activeOwner = null;
     clearAllHeldRegs();
+    if (shouldUseDemo()) setHealth('demo', 'Demo veri');
+    else setHealth('idle', '');
   }
 
   /**
@@ -773,6 +786,7 @@
     }
 
     tick();
+    startLiveWatch();
   }
 
   function scheduleColdPoll(opts, myToken) {
@@ -964,6 +978,7 @@
 
       scheduleColdPoll(opts, myToken);
       scheduleParamsWatch(opts, myToken);
+      startLiveWatch();
     }
 
     begin();
@@ -971,11 +986,97 @@
 
   /** Stream dene; yoksa poll. Sayfalar bunu kullanır. */
   function startLive(opts) {
-    startLiveStream(opts);
+    if (!opts) return;
+    var userOnValues = opts.onValues;
+    var userOnError = opts.onError;
+    var wrapped = Object.assign({}, opts, {
+      onValues: function(values, params) {
+        noteLiveData();
+        if (typeof userOnValues === 'function') userOnValues(values, params);
+      },
+      onError: function(err) {
+        var classified = classifyLiveError(err);
+        setHealth(classified.code, classified.message);
+        if (typeof userOnError === 'function') userOnError(err);
+      }
+    });
+    startLiveStream(wrapped);
   }
 
   function addConnectionListener(fn) {
     if (typeof fn === 'function') connectionListeners.push(fn);
+  }
+
+  function notifyHealth() {
+    healthListeners.forEach(function(fn) {
+      try { fn(healthState); } catch (e) { /* ignore */ }
+    });
+  }
+
+  /**
+   * @param {'idle'|'ok'|'demo'|'timeout'|'no_stream'|'error'|'offline'} code
+   * @param {string=} message
+   */
+  function setHealth(code, message) {
+    var level = 'ok';
+    if (code === 'timeout' || code === 'no_stream' || code === 'error' || code === 'offline') level = 'danger';
+    else if (code === 'demo') level = 'warn';
+    else if (code === 'idle') level = 'ok';
+    healthState = {
+      code: code || 'idle',
+      message: message || '',
+      level: level,
+      updatedAt: Date.now()
+    };
+    notifyHealth();
+  }
+
+  function getHealth() {
+    return healthState;
+  }
+
+  function addHealthListener(fn) {
+    if (typeof fn === 'function') healthListeners.push(fn);
+  }
+
+  function clearLiveWatch() {
+    if (liveWatchTimer) {
+      clearInterval(liveWatchTimer);
+      liveWatchTimer = null;
+    }
+  }
+
+  function noteLiveData() {
+    lastLiveDataAt = Date.now();
+    if (healthState.code !== 'ok') setHealth('ok', 'Canlı veri akıyor');
+    else {
+      healthState.updatedAt = lastLiveDataAt;
+    }
+  }
+
+  function startLiveWatch() {
+    clearLiveWatch();
+    lastLiveDataAt = Date.now();
+    setHealth('ok', 'Canlı okuma başlatıldı');
+    liveWatchTimer = setInterval(function() {
+      if (!streamActive && !pollTimer) return;
+      if (!isBleConnected()) {
+        setHealth('offline', 'Bağlantı yok');
+        return;
+      }
+      if (lastLiveDataAt && (Date.now() - lastLiveDataAt > LIVE_STALE_MS)) {
+        if (healthState.code !== 'no_stream' && healthState.code !== 'timeout') {
+          setHealth('no_stream', 'Veri akışı yok');
+        }
+      }
+    }, 1500);
+  }
+
+  function classifyLiveError(err) {
+    var msg = String((err && err.message) || err || '');
+    if (/timeout/i.test(msg)) return { code: 'timeout', message: 'Modbus zaman aşımı' };
+    if (/disconnect|GATT|NetworkError/i.test(msg)) return { code: 'offline', message: 'Bağlantı koptu' };
+    return { code: 'error', message: 'Canlı okuma hatası' };
   }
 
   window.LiveModbus = {
@@ -1005,13 +1106,17 @@
     startLive: startLive,
     stopLivePoll: stopLivePoll,
     stopLiveStream: stopLivePoll,
-    addConnectionListener: addConnectionListener
+    addConnectionListener: addConnectionListener,
+    getHealth: getHealth,
+    setHealth: setHealth,
+    addHealthListener: addHealthListener
   };
 
   window.onBleConnectionChange = function(connected) {
     if (!connected) {
       stopLivePoll();
       clearAllHeldRegs();
+      setHealth('offline', 'Bağlantı yok');
     }
     connectionListeners.forEach(function(fn) {
       try { fn(!!connected); } catch (e) { /* ignore */ }

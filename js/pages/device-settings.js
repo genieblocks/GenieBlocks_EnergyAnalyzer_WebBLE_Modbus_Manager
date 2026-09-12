@@ -19,11 +19,18 @@
     var info = getDevice();
 
     if (!info) {
-      container.innerHTML =
-        '<div class="flex flex-col items-center justify-center py-12 text-gray-400 text-sm">' +
-          '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-3 text-gray-300"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"/></svg>' +
-          '<p>Cihaz ayarları için lütfen Dashboard\'dan<br><strong>ayar destekli bir cihaz</strong> seçin.</p>' +
-        '</div>';
+      container.innerHTML = typeof emptyStateHtml === 'function'
+        ? emptyStateHtml({
+            icon: 'config',
+            title: 'Konfig destekli cihaz seçin',
+            desc: 'Cihaz ayarları yalnızca settings tanımlı modellerde kullanılabilir.',
+            actions: [
+              { action: 'focus-device', label: 'Model seç', primary: true },
+              { action: 'dashboard', label: 'Analizör’e dön' }
+            ]
+          })
+        : '<p class="text-sm text-gray-400 text-center py-12">Ayar destekli cihaz seçin.</p>';
+      if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(container);
       return;
     }
 
@@ -34,10 +41,12 @@
       ? window.LiveModbus.getModeBadge()
       : { label: '—', className: 'bg-gray-100 text-gray-500' };
 
-    html += '<div class="flex items-center justify-between mb-3 gap-2 flex-wrap">';
-    html += '<div class="text-sm text-gray-500">' + device.name + ' — Cihaz Konfigürasyonu</div>';
-    html += '<div class="flex items-center gap-2">';
-    html += '<button type="button" id="ds-read-all" class="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 font-medium border-none cursor-pointer hover:bg-gray-200 transition-colors">Tümünü Oku</button>';
+    html += '<div class="flex items-center justify-between mb-3 gap-2 min-w-0">';
+    html += '<div class="text-sm text-gray-500 min-w-0 truncate">' + device.name + ' — Cihaz Konfigürasyonu</div>';
+    html += '<div class="flex items-center gap-1.5 shrink-0">';
+    html += '<button type="button" id="ds-read-all" title="Tümünü Oku" aria-label="Tümünü Oku" class="inline-flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white text-ink cursor-pointer hover:bg-gray-50 hover:border-gray-400 shadow-sm transition-colors">';
+    html += '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10a6 6 0 0110.4-4.1M16 4v4h-4"/><path d="M16 10a6 6 0 01-10.4 4.1M4 16v-4h4"/></svg>';
+    html += '</button>';
     html += '<span class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
     html += '</div></div>';
 
@@ -74,8 +83,8 @@
       });
 
       html += '<div class="flex gap-2 mt-3">';
-      html += '<button class="ds-read flex-1 px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 font-medium text-xs border-none cursor-pointer hover:bg-gray-200 transition-colors" data-group="' + gi + '">Oku</button>';
-      html += '<button class="ds-write flex-1 px-3 py-1.5 rounded-full bg-brand text-white font-medium text-xs border-none cursor-pointer hover:bg-brand-dark transition-colors" data-group="' + gi + '">Yaz</button>';
+      html += '<button type="button" class="ds-read flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-gray-300 bg-white text-ink font-semibold text-xs cursor-pointer hover:bg-gray-50 hover:border-gray-400 shadow-sm transition-colors" data-group="' + gi + '">Oku</button>';
+      html += '<button type="button" class="ds-write flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-brand/30 bg-brand text-white font-semibold text-xs cursor-pointer hover:bg-brand-dark shadow-sm transition-colors" data-group="' + gi + '">Yaz</button>';
       html += '</div>';
 
       html += '</div>';
@@ -139,9 +148,22 @@
 
   function flashEl(el, color) {
     if (!el) return;
+    el.classList.remove('field-busy');
     el.style.transition = 'background-color 0.3s';
     el.style.backgroundColor = color;
     setTimeout(function() { el.style.backgroundColor = ''; }, 800);
+  }
+
+  function setSettingsFieldsBusy(params, busy) {
+    (params || []).forEach(function(param) {
+      var el = document.getElementById('ds_' + param.reg.toString(16));
+      if (!el) return;
+      if (busy) el.classList.add('field-busy');
+      else {
+        el.classList.remove('field-busy');
+        el.style.backgroundColor = '';
+      }
+    });
   }
 
   function applySettingsValues(params, values) {
@@ -175,12 +197,15 @@
       return;
     }
     if (btn) btn.disabled = true;
+    setSettingsFieldsBusy(group.params, true);
     try {
       var reader = window.LiveModbus.readParamsOneShot || window.LiveModbus.readParams;
       var values = await reader.call(window.LiveModbus, device, group.params);
+      setSettingsFieldsBusy(group.params, false);
       applySettingsValues(group.params, values);
       showToast('Okuma başarılı');
     } catch (e) {
+      setSettingsFieldsBusy(group.params, false);
       showToast('Okuma hatası: ' + (e.message || e));
     } finally {
       if (btn) btn.disabled = false;
@@ -193,14 +218,17 @@
       return;
     }
     if (btn) btn.disabled = true;
+    var params = collectAllSettingsParams(device);
+    setSettingsFieldsBusy(params, true);
     try {
-      var params = collectAllSettingsParams(device);
       if (!params.length) throw new Error('Okunacak ayar yok');
       var reader = window.LiveModbus.readParamsOneShot || window.LiveModbus.readParams;
       var values = await reader.call(window.LiveModbus, device, params);
+      setSettingsFieldsBusy(params, false);
       applySettingsValues(params, values);
       showToast('Tüm ayarlar okundu');
     } catch (e) {
+      setSettingsFieldsBusy(params, false);
       showToast('Okuma hatası: ' + (e.message || e));
     } finally {
       if (btn) btn.disabled = false;
@@ -228,10 +256,13 @@
         flashEls.push(el);
       }
       if (!items.length) throw new Error('Yazılacak parametre yok');
+      setSettingsFieldsBusy(group.params, true);
       await window.LiveModbus.writeParamsBulk(device, items);
+      setSettingsFieldsBusy(group.params, false);
       flashEls.forEach(function(el) { flashEl(el, '#bfdbfe'); });
       showToast('Yazma başarılı');
     } catch (e) {
+      setSettingsFieldsBusy(group.params, false);
       showToast('Yazma hatası: ' + (e.message || e));
     } finally {
       if (btn) btn.disabled = false;

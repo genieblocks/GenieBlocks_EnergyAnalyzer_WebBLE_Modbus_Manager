@@ -1037,6 +1037,167 @@ function getDeviceById(id) {
   return DeviceRegistry[id] || null;
 }
 
+/**
+ * Sayfa görünürlüğü SSOT — bottom-nav ve redirect buradan okunur.
+ * Kaynak: DeviceRegistry alanları (groups / harmonics / settings / ios) + 'manual' modu.
+ *
+ * @param {string|null|undefined} deviceId registry id | 'manual' | '' | null
+ * @returns {{
+ *   dashboard: boolean,
+ *   charts: boolean,
+ *   harmonics: boolean,
+ *   'device-settings': boolean,
+ *   'io-monitor': boolean,
+ *   settings: boolean
+ * }}
+ */
+function getDeviceCapabilities(deviceId) {
+  var gatewaySettings = true;
+
+  if (!deviceId) {
+    return {
+      dashboard: true,
+      charts: false,
+      harmonics: false,
+      'device-settings': false,
+      'io-monitor': false,
+      settings: gatewaySettings
+    };
+  }
+
+  if (deviceId === 'manual') {
+    return {
+      dashboard: false,
+      charts: false,
+      harmonics: false,
+      'device-settings': false,
+      'io-monitor': false,
+      settings: gatewaySettings
+    };
+  }
+
+  var device = getDeviceById(deviceId);
+  if (!device) {
+    return {
+      dashboard: true,
+      charts: false,
+      harmonics: false,
+      'device-settings': false,
+      'io-monitor': false,
+      settings: gatewaySettings
+    };
+  }
+
+  var hasGroups = !!(device.groups && device.groups.length);
+  var hasHarmonics = !!(device.harmonics && Object.keys(device.harmonics).length);
+  var hasDeviceSettings = !!(device.settings && device.settings.length);
+  var ios = device.ios;
+  var hasIo = !!(ios && (
+    (ios.digitalInputs && ios.digitalInputs.length) ||
+    (ios.digitalOutputs && ios.digitalOutputs.length) ||
+    (ios.relays && ios.relays.length) ||
+    (ios.analogInputs && ios.analogInputs.length) ||
+    (ios.analogOutputs && ios.analogOutputs.length)
+  ));
+
+  return {
+    dashboard: hasGroups,
+    charts: hasGroups,
+    harmonics: hasHarmonics,
+    'device-settings': hasDeviceSettings,
+    'io-monitor': hasIo,
+    settings: gatewaySettings
+  };
+}
+
+function isPageAvailableForDevice(pageId, deviceId) {
+  var caps = getDeviceCapabilities(deviceId);
+  return !!caps[pageId];
+}
+
+/** Cihaz için ilk uygun sayfa (nav sırasına yakın öncelik). */
+function getFallbackPageForDevice(deviceId) {
+  var order = ['dashboard', 'settings', 'charts', 'harmonics', 'device-settings', 'io-monitor'];
+  var caps = getDeviceCapabilities(deviceId);
+  for (var i = 0; i < order.length; i++) {
+    if (caps[order[i]]) return order[i];
+  }
+  return 'settings';
+}
+
+window.getDeviceCapabilities = getDeviceCapabilities;
+window.isPageAvailableForDevice = isPageAvailableForDevice;
+window.getFallbackPageForDevice = getFallbackPageForDevice;
+
+/** Ortak empty-state ikonları (24 viewBox). */
+var EMPTY_STATE_ICONS = {
+  meter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  harmonics: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="17" rx="1"/></svg>',
+  config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+  io: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+  device: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>'
+};
+
+/**
+ * Ortak boş durum HTML’i.
+ * @param {{ icon?: string, title: string, desc?: string, actions?: Array<{action:string,label:string,primary?:boolean}> }} opts
+ */
+function emptyStateHtml(opts) {
+  opts = opts || {};
+  var icon = EMPTY_STATE_ICONS[opts.icon || 'device'] || EMPTY_STATE_ICONS.device;
+  var html = '<div class="empty-state" role="status">';
+  html += '<div class="empty-state-icon" aria-hidden="true">' + icon + '</div>';
+  html += '<p class="empty-state-title">' + (opts.title || '') + '</p>';
+  if (opts.desc) html += '<p class="empty-state-desc">' + opts.desc + '</p>';
+  if (opts.actions && opts.actions.length) {
+    html += '<div class="empty-state-actions">';
+    opts.actions.forEach(function(a) {
+      html += '<button type="button" class="empty-state-btn' + (a.primary ? ' is-primary' : '') +
+        '" data-empty-action="' + a.action + '">' + a.label + '</button>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function bindEmptyStateActions(root) {
+  var scope = root || document;
+  scope.querySelectorAll('[data-empty-action]').forEach(function(btn) {
+    if (btn.dataset.emptyBound === '1') return;
+    btn.dataset.emptyBound = '1';
+    btn.addEventListener('click', function() {
+      var action = this.dataset.emptyAction;
+      if (action === 'connect') {
+        var connectBtn = document.getElementById('butConnect');
+        if (connectBtn) connectBtn.click();
+      } else if (action === 'focus-device') {
+        var sel = document.getElementById('header-device-select');
+        var label = document.getElementById('header-device-name');
+        if (label) label.classList.add('hidden');
+        if (sel) {
+          sel.classList.remove('hidden');
+          sel.focus();
+          try { sel.showPicker(); } catch (e) { /* ignore */ }
+        }
+      } else if (action === 'settings') {
+        if (typeof window.showPage === 'function') window.showPage('settings');
+      } else if (action === 'add-chart') {
+        var addBtn = document.getElementById('add-chart-btn');
+        if (addBtn) addBtn.click();
+      } else if (action === 'dashboard') {
+        if (typeof window.showPage === 'function') window.showPage('dashboard');
+      } else if (action === 'try-demo') {
+        if (typeof window.tryDemoDevice === 'function') window.tryDemoDevice();
+      }
+    });
+  });
+}
+
+window.emptyStateHtml = emptyStateHtml;
+window.bindEmptyStateActions = bindEmptyStateActions;
+
 function getAllParamsFlat(deviceId) {
   var device = getDeviceById(deviceId);
   if (!device) return [];

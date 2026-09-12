@@ -12,27 +12,34 @@
     renderChartsPage();
   }
 
+  function timeWindowBtnClass(active) {
+    if (active) {
+      return 'time-window-btn text-xs font-semibold px-2.5 py-1.5 rounded-full border border-brand bg-brand text-white cursor-pointer shadow-sm transition-colors';
+    }
+    return 'time-window-btn text-xs font-semibold px-2.5 py-1.5 rounded-full border border-gray-300 bg-white text-ink cursor-pointer hover:bg-gray-50 hover:border-gray-400 shadow-sm transition-colors';
+  }
+
   function renderChartsPage() {
     var container = document.getElementById('charts-content');
     if (!container) return;
 
     var html = '';
 
-    html += '<div class="flex items-center gap-1.5 mb-3 flex-wrap">';
-    html += '<span class="text-xs text-gray-500 mr-1">Zaman:</span>';
+    html += '<div class="flex items-center gap-1.5 mb-3 min-w-0">';
+    html += '<span class="text-xs text-gray-500 shrink-0">Zaman:</span>';
+    html += '<div class="flex items-center gap-1.5 min-w-0 overflow-x-auto flex-1">';
     Object.keys(TIME_WINDOWS).forEach(function(label) {
       var active = TIME_WINDOWS[label] === currentTimeWindow;
-      html += '<button class="time-window-btn text-xs px-2.5 py-1 rounded-full border-none cursor-pointer transition-colors ';
-      html += active ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
-      html += '" data-ms="' + TIME_WINDOWS[label] + '">' + label + '</button>';
+      html += '<button type="button" class="' + timeWindowBtnClass(active) + ' shrink-0" data-ms="' + TIME_WINDOWS[label] + '">' + label + '</button>';
     });
-    html += '<div class="flex-1"></div>';
+    html += '</div>';
     var badge = (window.LiveModbus && window.LiveModbus.getModeBadge)
       ? window.LiveModbus.getModeBadge()
       : { label: '—', className: 'badge-off' };
-    html += '<span id="charts-mode-badge" class="text-xs px-2 py-0.5 rounded-full ' + badge.className + '">' + badge.label + '</span>';
-    html += '<button id="add-chart-btn" class="text-xs px-3 py-1 rounded-full badge-live border-none cursor-pointer hover:bg-emerald-100 transition-colors">+ Veri Ekle</button>';
-    html += '<button id="clear-all-charts" class="text-xs px-3 py-1 rounded-full bg-red-50 text-red-600 border-none cursor-pointer hover:bg-red-100 transition-colors">Temizle</button>';
+    html += '<span id="charts-mode-badge" class="text-xs px-2 py-0.5 rounded-full shrink-0 ' + badge.className + '">' + badge.label + '</span>';
+    html += '<button type="button" id="add-chart-btn" title="Veri Ekle" aria-label="Veri Ekle" class="inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-full border border-brand/30 bg-brand text-white cursor-pointer hover:bg-brand-dark shadow-sm transition-colors">';
+    html += '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>';
+    html += '</button>';
     html += '</div>';
 
     html += '<div id="charts-list"></div>';
@@ -52,9 +59,9 @@
       btn.addEventListener('click', function() {
         currentTimeWindow = parseInt(this.dataset.ms, 10);
         container.querySelectorAll('.time-window-btn').forEach(function(b) {
-          b.className = b.className.replace(/bg-brand text-white/g, 'bg-gray-100 text-gray-600 hover:bg-gray-200');
+          var isActive = parseInt(b.dataset.ms, 10) === currentTimeWindow;
+          b.className = timeWindowBtnClass(isActive) + ' shrink-0';
         });
-        this.className = this.className.replace(/bg-gray-100 text-gray-600 hover:bg-gray-200/g, 'bg-brand text-white');
         trimAllCharts();
       });
     });
@@ -64,9 +71,31 @@
     document.getElementById('add-chart-modal').addEventListener('click', function(e) {
       if (e.target === this) hideAddChartModal();
     });
-    document.getElementById('clear-all-charts').addEventListener('click', removeAllCharts);
 
     restoreActiveCharts();
+    updateChartsEmptyHint();
+  }
+
+  function updateChartsEmptyHint() {
+    var list = document.getElementById('charts-list');
+    if (!list) return;
+    if (Object.keys(charts).length > 0) {
+      var empty = list.querySelector('.empty-state');
+      if (empty) empty.remove();
+      return;
+    }
+    list.innerHTML = typeof emptyStateHtml === 'function'
+      ? emptyStateHtml({
+          icon: 'chart',
+          title: 'Henüz grafik yok',
+          desc: 'Analizör kartındaki grafik ikonuna dokunun veya sağ üstteki + ile parametre ekleyin.',
+          actions: [
+            { action: 'add-chart', label: 'Veri ekle (+)', primary: true },
+            { action: 'dashboard', label: 'Analizör’e git' }
+          ]
+        })
+      : '<p class="text-sm text-ink-muted text-center py-8">Grafik eklemek için + kullanın.</p>';
+    if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(list);
   }
 
   function showAddChartModal() {
@@ -76,7 +105,15 @@
 
     var deviceId = typeof window.getCurrentDeviceId === 'function' ? window.getCurrentDeviceId() : null;
     if (!deviceId || deviceId === 'manual') {
-      paramList.innerHTML = '<p class="text-sm text-gray-500">Lütfen önce Dashboard\'dan bir enerji analizör modeli seçin.</p>';
+      paramList.innerHTML = typeof emptyStateHtml === 'function'
+        ? emptyStateHtml({
+            icon: 'chart',
+            title: 'Önce model seçin',
+            desc: 'Grafik eklemek için header’dan bir enerji analizörü seçin.',
+            actions: [{ action: 'focus-device', label: 'Model seç', primary: true }]
+          })
+        : '<p class="text-sm text-gray-500">Lütfen önce bir enerji analizör modeli seçin.</p>';
+      if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(paramList);
       modal.classList.remove('hidden');
       return;
     }
@@ -134,6 +171,8 @@
 
     var chartsList = document.getElementById('charts-list');
     if (!chartsList) return;
+    var priorEmpty = chartsList.querySelector('.empty-state');
+    if (priorEmpty) priorEmpty.remove();
 
     var wrapper = document.createElement('div');
     wrapper.id = 'chart-wrap-' + paramKey.replace(/[:.]/g, '_');
@@ -188,6 +227,7 @@
 
     startDataFeedForChart(paramKey, meta);
     saveActiveCharts();
+    updateChartsEmptyHint();
   }
 
   function removeChart(paramKey) {
@@ -201,13 +241,10 @@
     delete charts[paramKey];
     delete dataStore[paramKey];
     saveActiveCharts();
+    updateChartsEmptyHint();
     if (isChartsPageActive() && window.LiveModbus && window.LiveModbus.shouldUseLive()) {
       startChartsLive();
     }
-  }
-
-  function removeAllCharts() {
-    Object.keys(charts).forEach(function(key) { removeChart(key); });
   }
 
   function pushData(paramKey, value) {
@@ -341,11 +378,16 @@
         return params;
       },
       onValues: function(values) {
+        var gotAny = false;
         Object.keys(charts).forEach(function(key) {
           var meta = charts[key].meta;
           if (!meta || values[meta.reg] === undefined) return;
+          gotAny = true;
           pushData(key, values[meta.reg]);
         });
+        if (gotAny && window.ConnectProgress && typeof window.ConnectProgress.signalFirstLiveData === 'function') {
+          window.ConnectProgress.signalFirstLiveData();
+        }
       },
       onError: function(e) {
         if (window.logMsg) window.logMsg('Grafik canlı okuma: ' + (e.message || e));

@@ -11,13 +11,19 @@
   function initDashboard() {
     renderDeviceSelector();
     var saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && (getDeviceById(saved) || saved === 'manual')) {
-      document.getElementById('device-select').value = saved;
+    var select = document.getElementById('header-device-select');
+    if (saved && (getDeviceById(saved) || saved === 'manual') && select) {
+      select.value = saved;
       onDeviceSelected(saved);
     }
+    syncHeaderDeviceUi();
     if (window.LiveModbus && window.LiveModbus.addConnectionListener) {
       window.LiveModbus.addConnectionListener(function() {
-        if (currentDeviceId && currentDeviceId !== 'manual') {
+        syncHeaderDeviceUi();
+        if (!currentDeviceId) {
+          var container = document.getElementById('dashboard-content');
+          if (container) renderDashboardGuide(container);
+        } else if (currentDeviceId && currentDeviceId !== 'manual') {
           syncLiveOrDemo();
         }
         updateLiveBadge();
@@ -31,10 +37,34 @@
         updateLiveBadge();
       });
     }
+    if (window.LiveModbus && window.LiveModbus.addHealthListener) {
+      window.LiveModbus.addHealthListener(function() {
+        updateDashHealth();
+      });
+    }
+  }
+
+  function isBleLinked() {
+    return !!(window.LiveModbus && typeof window.LiveModbus.isBleConnected === 'function' && window.LiveModbus.isBleConnected());
+  }
+
+  function syncHeaderDeviceUi() {
+    var select = document.getElementById('header-device-select');
+    var label = document.getElementById('header-device-name');
+    if (!select || !label) return;
+    if (isBleLinked()) {
+      select.classList.add('hidden');
+      label.classList.remove('hidden');
+      updateHeaderDeviceName(currentDeviceId || select.value);
+    } else {
+      label.classList.add('hidden');
+      select.classList.remove('hidden');
+      if (currentDeviceId) select.value = currentDeviceId;
+    }
   }
 
   function renderDeviceSelector() {
-    var select = document.getElementById('device-select');
+    var select = document.getElementById('header-device-select');
     if (!select) return;
     select.innerHTML = '<option value="">-- Cihaz Seçin --</option>';
     var devices = getDeviceList();
@@ -56,19 +86,22 @@
     select.addEventListener('change', function() {
       localStorage.setItem(STORAGE_KEY, this.value);
       onDeviceSelected(this.value);
+      syncHeaderDeviceUi();
     });
   }
 
   function onDeviceSelected(deviceId) {
     stopAllData();
     paused = false;
-    currentDeviceId = deviceId;
+    currentDeviceId = deviceId || null;
     var container = document.getElementById('dashboard-content');
     if (!container) return;
 
     if (!deviceId) {
-      container.innerHTML = '<p class="text-gray-400 text-center mt-8 text-sm">Lütfen bir enerji analizör modeli seçin.</p>';
+      renderDashboardGuide(container);
+      updateHeaderDeviceName(null);
       updateLiveBadge();
+      if (typeof window.syncNavForDevice === 'function') window.syncNavForDevice(null);
       return;
     }
 
@@ -77,23 +110,40 @@
     if (deviceId === 'manual') {
       renderManualDashboard(container);
       updateLiveBadge();
+      if (typeof window.syncNavForDevice === 'function') window.syncNavForDevice('manual');
       return;
     }
 
     var device = getDeviceById(deviceId);
     if (!device) {
-      container.innerHTML = '<p class="text-red-400 text-center mt-4">Cihaz bulunamadı.</p>';
+      container.innerHTML = (typeof emptyStateHtml === 'function'
+        ? emptyStateHtml({
+            icon: 'device',
+            title: 'Cihaz bulunamadı',
+            desc: 'Kayıtlı model geçersiz. Lütfen listeden bir analizör seçin.',
+            actions: [{ action: 'focus-device', label: 'Model seç', primary: true }]
+          })
+        : '<p class="text-red-400 text-center mt-4">Cihaz bulunamadı.</p>');
+      if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(container);
+      if (typeof window.syncNavForDevice === 'function') window.syncNavForDevice(null);
       return;
     }
 
     renderDeviceDashboard(container, device, deviceId);
     syncLiveOrDemo();
     updateLiveBadge();
+    if (typeof window.syncNavForDevice === 'function') window.syncNavForDevice(deviceId);
   }
 
   function isDashboardPageActive() {
     var page = document.getElementById('page-dashboard');
     return page && page.classList.contains('active');
+  }
+
+  function setDashboardAwaitingLive(on) {
+    var el = document.getElementById('dashboard-content');
+    if (!el) return;
+    el.classList.toggle('is-awaiting-live', !!on);
   }
 
   function syncLiveOrDemo() {
@@ -105,10 +155,13 @@
     var useLive = window.LiveModbus && window.LiveModbus.shouldUseLive();
     var useDemo = window.LiveModbus && window.LiveModbus.shouldUseDemo();
     if (useLive) {
+      setDashboardAwaitingLive(true);
       startLive(currentDeviceId);
     } else if (useDemo) {
+      setDashboardAwaitingLive(false);
       startDemo(currentDeviceId);
     } else {
+      setDashboardAwaitingLive(false);
       clearParamValues(currentDeviceId);
     }
     updateLiveBadge();
@@ -119,8 +172,7 @@
     if (!device) return;
     device.groups.forEach(function(group) {
       group.params.forEach(function(param) {
-        var el = document.getElementById('p_' + param.reg);
-        if (el) el.textContent = '—';
+        setParamValueText(param.reg, '—');
       });
     });
   }
@@ -128,26 +180,137 @@
   function stopAllData() {
     stopDemo();
     stopLive();
+    setDashboardAwaitingLive(false);
+  }
+
+  function pauseIconSvg() {
+    return '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1"/><rect x="12" y="3" width="4" height="14" rx="1"/></svg>';
+  }
+
+  function playIconSvg() {
+    return '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M6 3.5v13l11-6.5L6 3.5z"/></svg>';
+  }
+
+  function demoToggleClass(isPaused) {
+    if (isPaused) {
+      return 'inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-full border border-brand/30 bg-brand text-white cursor-pointer hover:bg-brand-dark shadow-sm transition-colors';
+    }
+    return 'inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-full border border-gray-300 bg-white text-ink cursor-pointer hover:bg-gray-50 hover:border-gray-400 shadow-sm transition-colors';
+  }
+
+  function setDemoToggleUi(btn, isPaused) {
+    if (!btn) return;
+    btn.className = demoToggleClass(isPaused);
+    btn.setAttribute('aria-pressed', isPaused ? 'true' : 'false');
+    btn.setAttribute('aria-label', isPaused ? 'Başlat' : 'Duraklat');
+    btn.title = isPaused ? 'Canlı veriyi başlat' : 'Canlı veriyi duraklat';
+    btn.innerHTML = isPaused ? playIconSvg() : pauseIconSvg();
+  }
+
+  function setParamValueText(reg, text) {
+    var el = document.getElementById('p_' + reg);
+    if (el) el.textContent = text;
+    var hi = document.getElementById('ph_' + reg);
+    if (hi) hi.textContent = text;
+  }
+
+  /** Glanceable üst metrikler — V / A / P / PF / Hz / Enerji tercihi (cihazdan bağımsız heuristic). */
+  function pickHighlightMetrics(device) {
+    var flat = [];
+    (device.groups || []).forEach(function(g) {
+      (g.params || []).forEach(function(p) {
+        flat.push({ group: g, param: p });
+      });
+    });
+
+    function find(pred) {
+      for (var i = 0; i < flat.length; i++) {
+        if (pred(flat[i].group, flat[i].param)) return flat[i];
+      }
+      return null;
+    }
+
+    var picks = [];
+    var used = {};
+    function add(item, label) {
+      if (!item || used[item.param.reg] != null) return;
+      used[item.param.reg] = true;
+      picks.push({
+        reg: item.param.reg,
+        label: label,
+        unit: item.group.unit || '',
+        precision: item.param.precision != null ? item.param.precision : 2
+      });
+    }
+
+    add(find(function(g, p) {
+      return /gerilim/i.test(g.title) && (/^L1\b/i.test(p.name) || /^Gerilim$/i.test(p.name));
+    }), 'Gerilim');
+    add(find(function(g, p) {
+      return /akım/i.test(g.title) && (/^L1\b/i.test(p.name) || /^Akım$/i.test(p.name));
+    }), 'Akım');
+    add(find(function(g, p) {
+      return /aktif\s*güç/i.test(g.title) && /toplam/i.test(p.name);
+    }) || find(function(g, p) {
+      return (/aktif\s*güç/i.test(g.title) || (/^Güç$/i.test(g.title) && /aktif/i.test(p.name))) &&
+        !/reaktif|görünür/i.test(p.name);
+    }), 'Güç');
+    add(find(function(g, p) {
+      return /güç\s*faktörü/i.test(g.title) && /toplam/i.test(p.name);
+    }) || find(function(g, p) {
+      return /güç\s*faktörü/i.test(g.title) || /güç\s*faktörü/i.test(p.name);
+    }), 'PF');
+    add(find(function(g, p) {
+      return /frekans/i.test(g.title) || /frekans/i.test(p.name);
+    }), 'Frekans');
+    add(find(function(g, p) {
+      return /enerji/i.test(g.title) && /aktif|toplam|^Enerji$/i.test(p.name) && !/reaktif|export/i.test(p.name);
+    }), 'Enerji');
+
+    for (var j = 0; j < flat.length && picks.length < 6; j++) {
+      add(flat[j], flat[j].param.name);
+    }
+    return picks.slice(0, 6);
   }
 
   function renderDeviceDashboard(container, device, deviceId) {
     var html = '';
+    var highlights = pickHighlightMetrics(device);
 
-    html += '<div class="flex items-center justify-between mb-3">';
-    html += '<div class="text-sm text-gray-500">' + device.name + ' <span class="text-gray-400">|</span> ' + device.phases + ' Faz <span class="text-gray-400">|</span> Fn: 0x' + device.modbusFunction.toString(16).padStart(2, '0').toUpperCase();
-    html += ' <span id="dash-mode-badge" class="ml-1 text-xs px-2 py-0.5 rounded-full badge-off">—</span></div>';
-    html += '<button id="demo-toggle" class="text-xs px-3 py-1 rounded-full badge-live border-none cursor-pointer hover:bg-emerald-100 transition-colors">Duraklat</button>';
+    html += '<div class="flex items-center justify-between mb-3 gap-2 min-w-0">';
+    html += '<div class="text-sm text-gray-500 min-w-0 truncate">' + device.name + ' <span class="text-gray-400">|</span> ' + device.phases + ' Faz <span class="text-gray-400">|</span> Fn: 0x' + device.modbusFunction.toString(16).padStart(2, '0').toUpperCase();
+    html += ' <span id="dash-mode-badge" class="ml-1 text-xs px-2 py-0.5 rounded-full badge-off align-middle">—</span></div>';
+    html += '<button type="button" id="demo-toggle"></button>';
     html += '</div>';
+    html += '<div id="dash-health" class="dash-health" hidden role="status" aria-live="polite">' +
+      '<span class="dash-health-dot" aria-hidden="true"></span>' +
+      '<span id="dash-health-text"></span></div>';
+    html += '<div class="dash-await-banner" role="status">' +
+      '<span class="connect-progress-spinner" aria-hidden="true"></span>' +
+      '<span>İlk ölçümler yükleniyor…</span></div>';
 
-    html += '<div class="grid grid-cols-2 gap-2.5" id="cards-grid">';
+    if (highlights.length) {
+      html += '<div id="dash-highlights" aria-label="Öncelikli ölçümler">';
+      highlights.forEach(function(h) {
+        html += '<div class="dash-hi-card">';
+        html += '<div class="dash-hi-label">' + h.label + '</div>';
+        html += '<div class="dash-hi-row">';
+        html += '<span class="dash-hi-value param-value" id="ph_' + h.reg + '">—</span>';
+        if (h.unit) html += '<span class="dash-hi-unit">' + h.unit + '</span>';
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div class="gap-2.5" id="cards-grid">';
     device.groups.forEach(function(group, gi) {
       html += '<div class="value-card surface-card p-3">';
       html += '<div class="flex items-center justify-between mb-2">';
       html += '<span class="section-label">' + group.title;
       if (group.unit) html += ' <span class="text-ink-faint normal-case font-normal">(' + group.unit + ')</span>';
       html += '</span>';
-      html += '<button class="chart-btn w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-brand-light text-ink-faint hover:text-brand border-none cursor-pointer transition-colors" data-device="' + deviceId + '" data-group="' + gi + '" title="Canlı grafik">';
-      html += '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 10 14 10 12 16 8 4 6 10 2 10"/></svg>';
+      html += '<button type="button" class="chart-btn inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-full border border-gray-300 bg-white text-ink cursor-pointer hover:bg-gray-50 hover:border-brand hover:text-brand shadow-sm transition-colors" data-device="' + deviceId + '" data-group="' + gi + '" title="Canlı grafik" aria-label="Canlı grafik">';
+      html += '<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 10 14 10 12 16 8 4 6 10 2 10"/></svg>';
       html += '</button>';
       html += '</div>';
 
@@ -167,19 +330,18 @@
 
     var toggleBtn = document.getElementById('demo-toggle');
     if (toggleBtn) {
+      setDemoToggleUi(toggleBtn, paused);
       toggleBtn.addEventListener('click', function() {
         if (!paused && (demoRunning || liveActive)) {
           paused = true;
           stopAllData();
-          this.textContent = 'Başlat';
-          this.className = 'text-xs px-3 py-1 rounded-full bg-brand-light text-brand-dark border-none cursor-pointer hover:bg-brand-light transition-colors';
         } else {
           paused = false;
           syncLiveOrDemo();
-          this.textContent = 'Duraklat';
-          this.className = 'text-xs px-3 py-1 rounded-full badge-live border-none cursor-pointer hover:bg-emerald-100 transition-colors';
         }
+        setDemoToggleUi(this, paused);
         updateModeBadge();
+        updateDashHealth();
       });
     }
 
@@ -197,6 +359,46 @@
     });
 
     updateModeBadge();
+    updateDashHealth();
+  }
+
+  function healthLabel(h) {
+    if (!h) return '';
+    if (h.message) return h.message;
+    if (h.code === 'ok') return 'Sistem normal';
+    if (h.code === 'demo') return 'Demo veri';
+    if (h.code === 'timeout') return 'Modbus zaman aşımı';
+    if (h.code === 'no_stream') return 'Veri akışı yok';
+    if (h.code === 'offline') return 'Bağlantı yok';
+    if (h.code === 'error') return 'Canlı okuma hatası';
+    return '';
+  }
+
+  function updateDashHealth() {
+    var el = document.getElementById('dash-health');
+    var text = document.getElementById('dash-health-text');
+    if (!el || !text) return;
+    if (paused) {
+      el.hidden = false;
+      el.className = 'dash-health is-warn';
+      text.textContent = 'Okuma duraklatıldı';
+      return;
+    }
+    var h = window.LiveModbus && typeof window.LiveModbus.getHealth === 'function'
+      ? window.LiveModbus.getHealth()
+      : null;
+    if (!h || h.code === 'idle') {
+      el.hidden = true;
+      return;
+    }
+    // ISA-101: sorunları göster; ok iken kısa yeşil veya gizle
+    if (h.code === 'ok') {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.className = 'dash-health is-' + (h.level === 'danger' ? 'danger' : (h.level === 'warn' ? 'warn' : 'ok'));
+    text.textContent = healthLabel(h);
   }
 
   function updateModeBadge() {
@@ -219,52 +421,61 @@
 
   function updateLiveBadge() {
     updateModeBadge();
+    updateDashHealth();
+  }
+
+  function renderDashboardGuide(container) {
+    var ble = !!(window.LiveModbus && typeof window.LiveModbus.isBleConnected === 'function' &&
+      window.LiveModbus.isBleConnected());
+    var html = '<div class="empty-state" role="status">';
+    html += '<div class="empty-state-icon" aria-hidden="true">' +
+      (typeof EMPTY_STATE_ICONS !== 'undefined' ? EMPTY_STATE_ICONS.meter :
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>') +
+      '</div>';
+    html += '<p class="empty-state-title">Ölçüme başlayın</p>';
+    html += '<p class="empty-state-desc">Önce gateway’e bağlanın, ardından analizör modelini seçin.</p>';
+    html += '<ol class="empty-state-steps">';
+    html += '<li class="' + (ble ? 'is-done' : '') + '">';
+    html += '<span class="step-num">' + (ble ? '✓' : '1') + '</span>';
+    html += '<div class="min-w-0 flex-1">';
+    html += '<strong>Cihaza bağlanın</strong>';
+    html += '<p class="step-body">Üstteki Bluetooth bağlantısı ile gateway’e bağlanın.</p>';
+    if (!ble) {
+      html += '<button type="button" class="empty-state-btn is-primary mt-2" data-empty-action="connect">Cihaza Bağlan</button>';
+    } else {
+      html += '<p class="step-body text-ok-text mt-1 font-medium">Bağlı</p>';
+    }
+    html += '</div></li>';
+    html += '<li>';
+    html += '<span class="step-num">2</span>';
+    html += '<div class="min-w-0 flex-1">';
+    html += '<strong>Analizör modeli seçin</strong>';
+    html += '<p class="step-body">Header’daki listeden cihaz modelini seçin; kartlar burada görünür.</p>';
+    html += '<button type="button" class="empty-state-btn mt-2" data-empty-action="focus-device">Model seç</button>';
+    html += '</div></li>';
+    html += '</ol>';
+    if (!ble) {
+      html += '<div class="empty-state-actions mt-4">';
+      html += '<button type="button" class="empty-state-btn" data-empty-action="try-demo">Demo ile dene</button>';
+      html += '</div>';
+      html += '<p class="empty-state-desc mt-2">Cihaz olmadan arayüzü örnek veriyle gezebilirsiniz.</p>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(container);
   }
 
   function renderManualDashboard(container) {
-    var html = '';
-    html += '<div class="surface-card p-4">';
-    html += '<h3 class="text-sm font-semibold text-gray-700 mb-3">Manuel Modbus Okuyucu</h3>';
-    html += '<p class="text-xs text-gray-500 mb-3">Canlı okuma için üstteki <strong>Manuel Modbus</strong> sekmesini kullanın (BLE bağlantısı gerekir).</p>';
-    html += '<div class="flex flex-col gap-2.5">';
-
-    html += '<div class="flex items-center gap-2"><label class="text-xs text-gray-500 w-20">Slave</label>';
-    html += '<input type="number" id="dash-mm-slave" min="1" max="247" value="1" class="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"></div>';
-
-    html += '<div class="flex items-center gap-2"><label class="text-xs text-gray-500 w-20">Fonksiyon</label>';
-    html += '<select id="dash-mm-func" class="flex-1 px-2 py-1 border border-gray-300 rounded text-sm">';
-    html += '<option value="3">0x03 Read Holding</option><option value="4">0x04 Read Input</option>';
-    html += '</select></div>';
-
-    html += '<div class="flex items-center gap-2"><label class="text-xs text-gray-500 w-20">Başlangıç</label>';
-    html += '<input type="number" id="dash-mm-start" min="0" max="65535" value="0" class="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"></div>';
-
-    html += '<div class="flex items-center gap-2"><label class="text-xs text-gray-500 w-20">Adet</label>';
-    html += '<input type="number" id="dash-mm-qty" min="1" max="64" value="10" class="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"></div>';
-
-    html += '<button id="dash-mm-read" class="mt-1 px-4 py-1.5 rounded-full bg-brand text-white font-medium text-sm border-none cursor-pointer hover:bg-brand-dark transition-colors">Demo Oku</button>';
-    html += '</div>';
-    html += '</div>';
-
-    html += '<div id="dash-mm-result" class="mt-3"></div>';
-
+    var html = typeof emptyStateHtml === 'function'
+      ? emptyStateHtml({
+          icon: 'config',
+          title: 'Manuel Modbus',
+          desc: 'Tanımsız cihaz için Ayarlar → Manuel Modbus sekmesinden okuma/yazma yapın.',
+          actions: [{ action: 'settings', label: 'Ayarlar’a git', primary: true }]
+        })
+      : '<p class="text-sm text-gray-500 text-center mt-8">Ayarlar → Manuel Modbus sekmesini kullanın.</p>';
     container.innerHTML = html;
-
-    document.getElementById('dash-mm-read').addEventListener('click', function() {
-      var qty = parseInt(document.getElementById('dash-mm-qty').value, 10) || 10;
-      var start = parseInt(document.getElementById('dash-mm-start').value, 10) || 0;
-      var resultDiv = document.getElementById('dash-mm-result');
-      var rows = '';
-      for (var i = 0; i < qty; i++) {
-        var val = Math.floor(Math.random() * 65536);
-        rows += '<div class="flex justify-between items-baseline py-0.5 px-2 ' + (i % 2 === 0 ? 'bg-gray-50' : '') + '">';
-        rows += '<span class="text-xs font-mono text-gray-500">Reg[' + (start + i) + ']</span>';
-        rows += '<span class="text-sm font-mono font-semibold text-gray-800">' + val + ' <span class="text-gray-400">(0x' + val.toString(16).toUpperCase().padStart(4, '0') + ')</span></span>';
-        rows += '</div>';
-      }
-      resultDiv.innerHTML = '<div class="surface-card p-3">' +
-        '<div class="section-label mb-2">Demo Sonuç</div>' + rows + '</div>';
-    });
+    if (typeof bindEmptyStateActions === 'function') bindEmptyStateActions(container);
   }
 
   function collectGroupParams(device) {
@@ -278,19 +489,26 @@
   }
 
   function applyValuesToUi(deviceId, device, values) {
+    var gotAny = false;
     device.groups.forEach(function(group) {
       group.params.forEach(function(param) {
-        var el = document.getElementById('p_' + param.reg);
-        if (!el) return;
         var val = values[param.reg];
         if (val === undefined || val === null || isNaN(val)) return;
+        gotAny = true;
         var prec = param.precision != null ? param.precision : 2;
-        el.textContent = Number(val).toFixed(prec);
+        var text = Number(val).toFixed(prec);
+        setParamValueText(param.reg, text);
         if (typeof window.pushDemoData === 'function') {
           window.pushDemoData(deviceId + ':' + param.reg, val);
         }
       });
     });
+    if (gotAny) {
+      setDashboardAwaitingLive(false);
+      if (window.ConnectProgress && typeof window.ConnectProgress.signalFirstLiveData === 'function') {
+        window.ConnectProgress.signalFirstLiveData();
+      }
+    }
   }
 
   function startLive(deviceId) {
@@ -337,11 +555,15 @@
     var device = getDeviceById(deviceId);
     if (!device) return;
 
+    if (window.LiveModbus && typeof window.LiveModbus.setHealth === 'function') {
+      window.LiveModbus.setHealth('demo', 'Demo veri');
+    }
     updateDemoValues(device);
     demoInterval = setInterval(function() {
       updateDemoValues(device);
     }, 1000);
     updateModeBadge();
+    updateDashHealth();
   }
 
   function stopDemo() {
@@ -355,15 +577,14 @@
   function updateDemoValues(device) {
     device.groups.forEach(function(group) {
       group.params.forEach(function(param) {
-        var el = document.getElementById('p_' + param.reg);
-        if (!el) return;
         var val;
         if (param.demoRange === 0) {
           val = param.demoBase;
         } else {
           val = param.demoBase + (Math.random() - 0.5) * 2 * param.demoRange;
         }
-        el.textContent = val.toFixed(param.precision);
+        var prec = param.precision != null ? param.precision : 2;
+        setParamValueText(param.reg, Number(val).toFixed(prec));
 
         if (typeof window.pushDemoData === 'function') {
           window.pushDemoData(currentDeviceId + ':' + param.reg, val);
@@ -387,6 +608,26 @@
 
   window.initDashboard = initDashboard;
   window.getCurrentDeviceId = function() { return currentDeviceId; };
+  window.syncHeaderDeviceUi = syncHeaderDeviceUi;
+  /** Analizör rehberinden: demo zorla + ilk model (veya mevcut). */
+  window.tryDemoDevice = function() {
+    if (window.LiveModbus && typeof window.LiveModbus.setDemoMode === 'function') {
+      window.LiveModbus.setDemoMode('force');
+    }
+    var demoSel = document.getElementById('app_demo_mode');
+    if (demoSel) demoSel.value = 'force';
+    var select = document.getElementById('header-device-select');
+    var id = currentDeviceId;
+    if (!id || id === 'manual') {
+      var list = typeof getDeviceList === 'function' ? getDeviceList() : [];
+      id = list.length ? list[0].id : null;
+    }
+    if (!id) return;
+    if (select) select.value = id;
+    localStorage.setItem(STORAGE_KEY, id);
+    onDeviceSelected(id);
+    syncHeaderDeviceUi();
+  };
   window.startDashboardLiveIfConnected = function() {
     if (paused) return;
     if (!currentDeviceId || currentDeviceId === 'manual') return;
