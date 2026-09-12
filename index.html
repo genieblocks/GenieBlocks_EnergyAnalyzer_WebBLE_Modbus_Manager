@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr" data-version="v1.0.44">
+<html lang="tr" data-version="v1.0.46">
   <head>
     <title>GenieBlocks Enerji Analizörü</title>
     <meta charset="utf-8">
@@ -390,27 +390,30 @@
       .adv-card-footer-note {
         @apply text-xs text-gray-500 mt-2.5 mb-0 leading-relaxed border-t border-gray-200 pt-2.5;
       }
+      .adv-kv-groups {
+        @apply flex flex-col gap-3 mt-3;
+      }
+      .adv-kv-group-title {
+        @apply text-[11px] font-semibold text-ink-muted uppercase tracking-wide m-0 mb-1.5;
+      }
       .adv-kv-grid {
-        @apply grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2.5;
+        @apply grid grid-cols-2 lg:grid-cols-3 gap-2;
       }
       .adv-kv {
-        @apply flex justify-between items-baseline gap-2 min-w-0;
+        @apply flex flex-col items-stretch gap-1 min-w-0 p-2.5 rounded-md
+               bg-white border border-gray-200;
       }
       .adv-kv-label {
-        @apply text-gray-500 shrink-0;
+        @apply text-[11px] leading-tight font-medium text-ink-muted;
       }
       .adv-kv-value {
-        @apply font-mono text-gray-800 text-right min-w-0 break-all;
+        @apply font-mono text-sm text-ink leading-snug break-all min-h-[1.25rem];
       }
       .adv-kv-span {
-        @apply sm:col-span-2 flex-col items-stretch gap-0.5;
-      }
-      .adv-kv-span .adv-kv-label {
-        @apply text-xs;
+        @apply col-span-2 lg:col-span-3;
       }
       .adv-kv-span .adv-kv-value {
-        @apply text-left text-xs sm:text-sm tracking-wider w-full px-2 py-1.5 rounded-md
-               bg-white border border-gray-200 select-all;
+        @apply text-xs sm:text-sm tracking-wider select-all;
       }
       .io-toggle {
         @apply relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-0 p-0.5
@@ -807,19 +810,66 @@
             <section id="gateway-device-info" class="adv-card" aria-labelledby="adv-device-info-title">
               <h3 id="adv-device-info-title" class="adv-card-title">Gateway bilgisi</h3>
               <p class="adv-card-desc">Bağlantıda Device Info GATT’tan okunur.</p>
-              <div class="adv-kv-grid">
-                <div class="adv-kv"><span class="adv-kv-label">Model</span><span id="di-model" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Yazılım</span><span id="di-sw" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Donanım</span><span id="di-hw" class="adv-kv-value">—</span></div>
-                <div class="adv-kv adv-kv-span">
-                  <span class="adv-kv-label">Device EUI</span>
-                  <span id="di-eui" class="adv-kv-value" title="">—</span>
+              <div class="adv-kv-groups">
+                <div class="adv-kv-group">
+                  <h4 class="adv-kv-group-title">Cihaz</h4>
+                  <div class="adv-kv-grid">
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Model</span>
+                      <span id="di-model" class="adv-kv-value">—</span>
+                    </div>
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Yazılım</span>
+                      <span id="di-sw" class="adv-kv-value">—</span>
+                    </div>
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Donanım</span>
+                      <span id="di-hw" class="adv-kv-value">—</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="adv-kv"><span class="adv-kv-label">LoRaWAN sürümü</span><span id="di-lorawan" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Çalışma modu</span><span id="di-workmode" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Konum</span><span id="di-geoloc" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Sınıf</span><span id="di-class" class="adv-kv-value">—</span></div>
-                <div class="adv-kv"><span class="adv-kv-label">Batarya</span><span id="di-battery" class="adv-kv-value">—</span></div>
+
+                <div class="adv-kv-group">
+                  <h4 class="adv-kv-group-title">Kimlik</h4>
+                  <div class="adv-kv-grid">
+                    <div class="adv-kv adv-kv-span">
+                      <span class="adv-kv-label">Device EUI</span>
+                      <span id="di-eui" class="adv-kv-value" title="">—</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="adv-kv-group">
+                  <h4 class="adv-kv-group-title">Ağ / LoRaWAN</h4>
+                  <div class="adv-kv-grid">
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">LoRaWAN sürümü</span>
+                      <span id="di-lorawan" class="adv-kv-value">—</span>
+                    </div>
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Çalışma modu</span>
+                      <span id="di-workmode" class="adv-kv-value">—</span>
+                    </div>
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Sınıf</span>
+                      <span id="di-class" class="adv-kv-value">—</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="adv-kv-group">
+                  <h4 class="adv-kv-group-title">Durum</h4>
+                  <div class="adv-kv-grid">
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Konum</span>
+                      <span id="di-geoloc" class="adv-kv-value">—</span>
+                    </div>
+                    <div class="adv-kv">
+                      <span class="adv-kv-label">Batarya</span>
+                      <span id="di-battery" class="adv-kv-value">—</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <p id="di-status" class="text-xs text-gray-400 mt-2.5 mb-0">Cihaza bağlanınca okunur.</p>
             </section>
@@ -1004,6 +1054,6 @@
       </button>
     </nav>
 
-    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.44</div>
+    <div class="app-version fixed bg-black/5 text-gray-400 font-medium text-[10px] px-2 py-0.5 rounded z-[9999] pointer-events-none right-1 bottom-[60px]">v1.0.46</div>
   </body>
 </html>
